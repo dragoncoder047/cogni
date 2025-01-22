@@ -52,6 +52,8 @@ static struct {
 
     cog_object* error_sym;
     cog_object* not_impl_sym;
+    cog_object* on_exit_sym;
+    cog_object* on_enter_sym;
 } COG_GLOBALS = {0};
 
 cog_object* cog_not_implemented() {
@@ -167,6 +169,8 @@ static void gc() {
     cog_walk(COG_GLOBALS.scopes, markobject, NULL);
     cog_walk(COG_GLOBALS.error_sym, markobject, NULL);
     cog_walk(COG_GLOBALS.not_impl_sym, markobject, NULL);
+    cog_walk(COG_GLOBALS.on_exit_sym, markobject, NULL);
+    cog_walk(COG_GLOBALS.on_enter_sym, markobject, NULL);
     COG_GLOBALS.freelist = NULL;
     COG_GLOBALS.freespace = 0;
     for (chunk** c = &COG_GLOBALS.mem; *c;) {
@@ -220,6 +224,8 @@ void cog_quit() {
     COG_GLOBALS.scopes = NULL;
     COG_GLOBALS.error_sym = NULL;
     COG_GLOBALS.not_impl_sym = NULL;
+    COG_GLOBALS.on_enter_sym = NULL;
+    COG_GLOBALS.on_exit_sym = NULL;
     gc();
     assert(COG_GLOBALS.mem == NULL);
 }
@@ -2066,6 +2072,8 @@ void cog_init() {
 
     COG_GLOBALS.not_impl_sym = cog_make_identifier_c("[[Status::NotImplemented]]");
     COG_GLOBALS.error_sym = cog_make_identifier_c("[[Status::Error]]");
+    COG_GLOBALS.on_enter_sym = cog_make_identifier_c("[[Status::OnEnterHandler]]");
+    COG_GLOBALS.on_exit_sym = cog_make_identifier_c("[[Status::OnExitHandler]]");
     cog_set_stdout(cog_open_file("/dev/stdout", "w"));
     cog_set_stdin(cog_open_file("/dev/stdin", "r"));
     cog_set_stderr(cog_open_file("/dev/stderr", "w"));
