@@ -1147,6 +1147,7 @@ cog_obj_type ot_bfunction = {"BuiltinFunction", NULL};
 
 cog_object* cog_make_bfunction(cog_modfunc* func) {
     assert(func);
+    assert(func->when == COG_FUNC);
     cog_object* obj = cog_make_obj(&ot_bfunction);
     obj->as_fun = func;
     return obj;
