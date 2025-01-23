@@ -1852,6 +1852,7 @@ cog_object_method ome_def_or_let_run = {&ot_def_or_let_special, COG_M_RUN_SELF, 
 
 cog_object* m_def_or_let_stringify() {
     cog_object* self = cog_pop();
+    cog_pop(); // ignore readably
     bool is_def = self->as_int;
     cog_object* symbol = self->next;
     cog_push(cog_sprintf("<%s %O>", is_def ? "Def" : "Let", symbol));
