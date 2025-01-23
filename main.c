@@ -25,11 +25,7 @@ int main(int argc, char** argv) {
     // test values to see if stuff is getting popped too much
     for (cog_integer i = 0; i < 10; i++) cog_push(cog_box_int(i));
 
-    char* src = malloc(prelude_cog_len + 1);
-    memset(src, 0, prelude_cog_len + 1);
-    memcpy(src, prelude_cog, prelude_cog_len);
-
-    cog_object* s = cog_string(src);
+    cog_object* s = cog_string_from_bytes((char*)prelude_cog, prelude_cog_len);
 
     cog_push(s);
     cog_run_next(cog_make_identifier_c("Print"), NULL, NULL);
@@ -45,6 +41,5 @@ int main(int argc, char** argv) {
     printf("%zu cells used at exit\n", cog_get_num_cells_used());
 
     cog_quit();
-    free(src);
     return 0;
 }

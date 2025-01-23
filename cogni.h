@@ -265,6 +265,11 @@ cog_object* cog_strcat(cog_object*, cog_object*);
 cog_object* cog_string(const char* const s);
 
 /**
+ * Creates a string from a C char array with a known length.
+ */
+cog_object* cog_string_from_bytes(const char* const cstr, size_t);
+
+/**
  * Creates an empty string.
  */
 cog_object* cog_emptystring();

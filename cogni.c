@@ -822,7 +822,10 @@ void cog_delete_byte_from_buffer_at(cog_object** buffer, size_t index) {
 }
 
 cog_object* cog_string(const char* const cstr) {
-    size_t n = strlen(cstr);
+    return cog_string_from_bytes(cstr, strlen(cstr));
+}
+
+cog_object* cog_string_from_bytes(const char* const cstr, size_t n) {
     cog_object* str = cog_emptystring();
     cog_object* tail = str;
     for (size_t i = 0; i < n; i++)
