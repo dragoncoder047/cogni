@@ -1046,7 +1046,7 @@ static cog_object* m_file_write() {
     cog_object* buf = cog_expect_type_fatal(cog_pop(), &ot_buffer);
     FILE* f = file->as_ptr;
     while (buf) {
-        fprintf(f, "%*s", buf->stored_chars, buf->as_chars);
+        fprintf(f, "%.*s", buf->stored_chars, buf->as_chars);
         fflush(f);
         buf = buf->next;
     }
