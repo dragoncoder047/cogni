@@ -1,0 +1,3 @@
+[submodule "cognac"]
+	path = cognac
+	url = https://github.com/cognate-lang/cognate

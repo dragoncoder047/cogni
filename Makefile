@@ -1,6 +1,6 @@
-.PHONY: test run clean update-prelude
+.PHONY: test run cleanexec cleanlogs stresstest cleanexec prelude.h
 
-test: run clean
+test: stresstest cleanexec
 
 CFLAGS += -g1 -O0 -Wuninitialized # cSpell: ignore Wuninitialized
 ifeq ($(MODE), cpp)
@@ -10,23 +10,22 @@ else
 	CFLAGS += --std=gnu2x
 endif
 
-PRELUDE_URL := https://raw.githubusercontent.com/cognate-lang/cognate/refs/heads/master/src/prelude.cog
-
-prelude.h: prelude.cog
-	xxd -i prelude.cog >prelude.h
+prelude.h: cognac/src/prelude.cog
+	xxd -i cognac/src/prelude.cog > prelude.h
 
 cogni: cogni.o main.o prelude.h
 	$(CC) $(CFLAGS) main.o cogni.o -o cogni
 
-run: cogni
-	@echo
-	@echo -- begin program output --
-	@./cogni || true
-	@echo -- end program output --
-	@echo
-
-clean:
+cleanexec:
 	rm -f cogni cogni.o main.o
 
-update-prelude:
-	curl -s $(PRELUDE_URL) >prelude.cog
+TESTFILES=$(basename $(wildcard cognac/tests/*.cog))
+stresstest: $(TESTFILES)
+
+$(TESTFILES): cogni
+	@rm -f $@.log
+	./cogni $@.cog > $@.log
+	@! grep "^FAIL" --ignore-case $@.log --color
+
+cleanlogs:
+	rm -f cognac/tests/*.log

@@ -34,55 +34,56 @@ bool run(cog_object* what, cog_object* cookie) {
     }
 }
 
+void repl() {
+    printf("ERROR: REPL not implemented yet\n");
+    abort();
+}
+
 int main(int argc, char** argv) {
     cog_init();
     cog_add_module(&test);
 
-    // if (argc == 0) repl();
-    // else {
-    //
-    // }
-    cog_object* s = cog_string_from_bytes((char*)prelude_cog, prelude_cog_len);
+    cog_object* s = cog_string_from_bytes((char*)cognac_src_prelude_cog, cognac_src_prelude_cog_len);
 
 
     clock_t start_ticks = clock();
     cog_push(s);
     // parse the prelude
     if (!run(cog_make_identifier_c("Parse"), NULL)) {
-        fprintf(stderr, "Failed to parse prelude\n");
+        printf("Error parsing prelude\n");
         goto end;
     }
     // run the block to make it into a closure
     if (!run(cog_pop(), NULL)) {
-        fprintf(stderr, "Failed to close prelude\n");
+        printf("Error processing prelude\n");
         goto end;
     }
     // Then run the closure
     if (!run(cog_pop(), cog_box_bool(false))) {
-        fprintf(stderr, "Failed to run prelude\n");
+        printf("Error running prelude\n");
         goto end;
     }
 
     // Run user script
-    cog_push(cog_string("Test-builtin"));
+
+    if (argc == 0) repl();
+    else {
+        char* filename = argv[1];
+        cog_push(cog_open_file(filename, "r"));
+    }
     if (!run(cog_make_identifier_c("Parse"), NULL)) {
-        fprintf(stderr, "Failed to parse user script\n");
+        printf("Error parsing user script\n");
         goto end;
     }
     if (!run(cog_pop(), NULL)) {
-        fprintf(stderr, "Failed to close user script\n");
+        printf("Error processing user script\n");
         goto end;
     }
     if (!run(cog_pop(), cog_box_bool(false))) {
-        fprintf(stderr, "Failed to run user script\n");
+        printf("Error running user script\n");
         goto end;
     }
-    end:;
-    clock_t end_ticks = clock();
-
-    printf("%zu cells used at exit\n", cog_get_num_cells_used());
-    printf("Execution time: %f seconds\n", (double)(end_ticks - start_ticks) / CLOCKS_PER_SEC);
-
+    end:
     cog_quit();
     return 0;
 }
