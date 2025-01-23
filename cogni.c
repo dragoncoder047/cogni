@@ -312,13 +312,16 @@ cog_object* cog_list_splice(cog_object** l1, cog_object* l2) {
 }
 
 void cog_reverse_list_inplace(cog_object** list) {
-    cog_object* previous = NULL;
-    while (*list) {
-        cog_object* next = (*list)->next;
-        (*list)->next = previous;
-        previous = *list;
-        *list = next;
+    cog_object* prev = NULL;
+    cog_object* curr = *list;
+    cog_object* next;
+    while (curr) {
+        next = curr->next;
+        curr->next = prev;
+        prev = curr;
+        curr = next;
     }
+    *list = prev;
 }
 
 // MARK: ENVIRONMENT
@@ -332,7 +335,7 @@ void cog_defun(cog_object* identifier, cog_object* value) {
         pair = cog_make_obj(NULL);
         pair->data = identifier;
         pair->next = value;
-        cog_push_to(&top_scope->data, pair);
+        cog_push_to(&COG_GLOBALS.scopes->data, pair);
     }
 }
 
@@ -368,6 +371,10 @@ void cog_push(cog_object* item) {
 
 cog_object* cog_pop() {
     return cog_pop_from(&COG_GLOBALS.stack);
+}
+
+bool cog_is_stack_empty() {
+    return COG_GLOBALS.stack == NULL;
 }
 
 void cog_run_next(cog_object* item, cog_object* when, cog_object* cookie) {
@@ -418,31 +425,36 @@ cog_object* cog_mainloop(cog_object* status) {
     while (COG_GLOBALS.command_queue) {
         // debug_dump_stuff();
         cog_object* cmd = cog_pop_from(&COG_GLOBALS.command_queue);
-        if (cmd == NULL) break;
+        if (cmd == NULL) {
+            fprintf(stderr, "got NULL as object in command queue\n");
+            abort();
+        }
         cog_object* when = cmd->data;
         cog_object* which = cmd->next->data;
         cog_object* cookie = cmd->next->next;
-        if (!status && when) continue;
-        if (status && !cog_same_identifiers(status, when)) continue;
-
-        cog_push(cookie);
-        status = cog_run_well_known(which, COG_M_RUN_SELF);
-        if (cog_same_identifiers(status, cog_not_implemented())) {
-            cog_pop();
-            cog_push(cog_sprintf("Can't run %O", which));
-            status = cog_error();
-        }
-        // maybe do a GC
-        if (COG_GLOBALS.alloc_chunks > next_gc) {
-            // protect status in case it is nonstandard
-            cog_walk(status, markobject, NULL);
-            gc();
-            next_gc = COG_GLOBALS.alloc_chunks * 2;
+        bool is_normal_exec = cog_same_identifiers(status, when);
+        if (is_normal_exec || cog_same_identifiers(cog_on_exit(), when)) {
+            cog_push(cookie);
+            cog_object* new_status = cog_run_well_known(which, COG_M_RUN_SELF);
+            if (cog_same_identifiers(status, cog_not_implemented())) {
+                if (!is_normal_exec) {
+                    fprintf(stderr, "Double fault in exit handler\n");
+                    abort();
+                }
+                cog_pop();
+                cog_push(cog_sprintf("Can't run %O", which));
+                new_status = cog_error();
+            }
+            // maybe do a GC
+            if (COG_GLOBALS.alloc_chunks > next_gc) {
+                // protect status in case it is nonstandard
+                cog_walk(status, markobject, NULL);
+                gc();
+                next_gc = COG_GLOBALS.alloc_chunks * 2;
+            }
+            if (is_normal_exec) status = new_status;
         }
     }
-    trace();
-    debug_dump_stuff();
-    cog_printf("DEBUG: return status: %O\n", status);
     return status;
 }
 
@@ -685,6 +697,7 @@ bool cog_same_identifiers(cog_object* s1, cog_object* s2) {
     if (!s1 && !s2) return true;
     if (!s1 || !s2) return false;
     assert(s1->type == &ot_identifier);
+    if (!(s2->type == &ot_identifier)) print_backtrace();
     assert(s2->type == &ot_identifier);
     return !cog_strcasecmp(cog_explode_identifier(s1), cog_explode_identifier(s2));
 }
@@ -1178,9 +1191,10 @@ cog_object* m_bfunction_run() {
 }
 cog_object_method ome_bfunction_run = {&ot_bfunction, COG_M_RUN_SELF, m_bfunction_run};
 
-// MARK: BLOCKS
+// MARK: BLOCKS AND CLOSURES
 
 cog_obj_type ot_block = {"Block", cog_walk_only_next, NULL};
+cog_obj_type ot_closure = {"Closure", cog_walk_both, NULL};
 
 cog_object* cog_make_block(cog_object* commands) {
     assert(!commands || !commands->type);
@@ -1189,17 +1203,57 @@ cog_object* cog_make_block(cog_object* commands) {
     return obj;
 }
 
-cog_object* m_block_run() {
+cog_object* cog_make_closure(cog_object* block, cog_object* scopes) {
+    assert(block && block->type == &ot_block);
+    assert(!scopes || !scopes->type);
+    cog_object* obj = cog_make_obj(&ot_closure);
+    obj->data = block;
+    obj->next = scopes;
+    return obj;
+}
+
+cog_object* m_closure_run() {
+    // trace();
+    // debug_dump_stuff();
+    // abort();
     cog_object* self = cog_pop();
-    // TODO: this is wrong. Block obj when run should push another obj that when run should do this.
-    // TODO: closure'd scopes.
-    // TODO: push scope teardown command.
+    cog_object* cookie = cog_pop();
+    bool should_push_scope = true;
+    if (cookie) {
+        should_push_scope = cog_expect_type_fatal(cookie, &ot_bool)->as_int;
+    }
+    // push scope teardown command
+    if (should_push_scope) cog_run_next(cog_make_identifier_c("[[Closure::RestoreCallerScope]]"), cog_on_exit(), COG_GLOBALS.scopes);
+    // push all current commands
     cog_object* head_existing = COG_GLOBALS.command_queue;
     COG_GLOBALS.command_queue = NULL;
-    COG_ITER_LIST(self->next, cmd) cog_run_next(cmd, NULL, NULL);
+    COG_ITER_LIST(self->data->next, cmd) cog_run_next(cmd, NULL, NULL);
     cog_reverse_list_inplace(&COG_GLOBALS.command_queue);
     cog_list_splice(&COG_GLOBALS.command_queue, head_existing);
-    // TODO: push new scope command.
+    // push closed over scopes
+    COG_GLOBALS.scopes = self->next;
+    // push a new scope for local variables
+    if (should_push_scope) cog_push_new_scope();
+    return NULL;
+}
+cog_object_method ome_closure_run = {&ot_closure, COG_M_RUN_SELF, m_closure_run};
+
+cog_object* fn_closure_restore_scope() {
+    cog_object* old_scope = cog_pop();
+    COG_GLOBALS.scopes = old_scope;
+    return NULL;
+}
+cog_modfunc fne_closure_restore_scope = {
+    "[[Closure::RestoreCallerScope]]",
+    COG_FUNC,
+    fn_closure_restore_scope,
+    NULL,
+};
+
+cog_object* m_block_run() {
+    cog_object* self = cog_pop();
+    cog_pop(); // ignore cookie
+    cog_push(cog_make_closure(self, COG_GLOBALS.scopes));
     return NULL;
 }
 cog_object_method ome_block_run = {&ot_block, COG_M_RUN_SELF, m_block_run};
@@ -1852,6 +1906,7 @@ cog_object* cog_make_var(cog_object* what) {
 
 cog_object* m_def_or_let_run() {
     cog_object* self = cog_pop();
+    cog_pop(); // ignore cookie
     bool is_def = self->as_int;
     cog_object* symbol = self->next;
     cog_object* value = cog_pop();
@@ -1997,7 +2052,6 @@ cog_modfunc fne_parse = {
 // MARK: BUILTINS TABLES
 
 static cog_modfunc* builtin_modfunc_table[] = {
-    &fne_parse,
     &fne_parser_nextitem,
     &fne_parser_rule_special_chars,
     &fne_parser_rule_break_chars,
@@ -2019,6 +2073,9 @@ static cog_modfunc* builtin_modfunc_table[] = {
     &fne_parser_discard_informal_syntax,
     &fne_parser_handle_identifiers, // must be last i guess
     &fne_parser_parse_block_loop,
+
+    &fne_closure_restore_scope,
+    &fne_parse,
     NULL
 };
 
@@ -2044,6 +2101,7 @@ static cog_object_method* builtin_objfunc_table[] = {
     &ome_iostring_ungets,
     &ome_iostring_stringify,
     &ome_bfunction_run,
+    &ome_closure_run,
     &ome_block_run,
     &ome_block_stringify,
     &ome_def_or_let_run,
@@ -2067,7 +2125,9 @@ static cog_obj_type* builtin_types[] = {
     &ot_parser_sentinel,
     &ot_eof,
     &ot_block,
+    &ot_closure,
     &ot_def_or_let_special,
+    &ot_var,
     NULL
 };
 
@@ -2076,6 +2136,8 @@ static cog_module builtins = {"BUILTINS", builtin_modfunc_table, builtin_objfunc
 static void install_builtins() {
     cog_add_module(&builtins);
 }
+
+// MARK: INITIALIZATION
 
 static void cogni_debug_handler(int sig);
 void cog_init() {

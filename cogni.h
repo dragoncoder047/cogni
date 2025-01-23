@@ -360,7 +360,12 @@ cog_object* cog_expect_type_fatal(cog_object*, cog_obj_type*);
  * @param commands The list of commands to create the block from.
  * @return The newly created block object.
  */
-cog_object* cog_make_block(cog_object* commands);
+cog_object* cog_make_block(cog_object*);
+
+/**
+ * Creates a new closure object from a block and a list of scopes.
+ */
+cog_object* cog_make_closure(cog_object*, cog_object*);
 
 /**
  * Creates a new character object from a character.
@@ -458,6 +463,11 @@ void cog_push(cog_object*);
  * Pops an object from the global work stack.
  */
 cog_object* cog_pop();
+
+/**
+ * Returns true if the global work stack is empty.
+ */
+bool cog_is_stack_empty();
 
 /**
  * Queues the item to be run next in the main loop.

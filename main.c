@@ -18,28 +18,67 @@ cog_modfunc* m_test_table[] = {
 
 cog_module test = {"Test", m_test_table, NULL, NULL};
 
+bool run(cog_object* what, cog_object* cookie) {
+    cog_run_next(what, NULL, cookie);
+    cog_object* end_status = cog_mainloop(NULL);
+
+    if (cog_same_identifiers(end_status, cog_error())) {
+        cog_object* msg = cog_pop();
+        cog_printf("ERROR: %#O\n", msg);
+        return false;
+    } else {
+        // cog_object* done = cog_pop();
+        // cog_push(done);
+        // cog_printf("DEBUG: result is %#O\n", done);
+        return true;
+    }
+}
+
 int main(int argc, char** argv) {
-    puts("cogni!");
     cog_init();
     cog_add_module(&test);
 
-    // test values to see if stuff is getting popped too much
-    for (cog_integer i = 0; i < 10; i++) cog_push(cog_box_int(i));
-
+    // if (argc == 0) repl();
+    // else {
+    //
+    // }
     cog_object* s = cog_string_from_bytes((char*)prelude_cog, prelude_cog_len);
 
-    cog_push(s);
-    cog_run_next(cog_make_identifier_c("Print"), NULL, NULL);
-    cog_run_next(cog_make_identifier_c("Parse"), NULL, NULL);
 
     clock_t start_ticks = clock();
-    cog_object* end = cog_mainloop(NULL);
-    clock_t end_ticks = clock();
-
-    if (cog_same_identifiers(end, cog_error())) {
-        cog_object* msg = cog_pop();
-        cog_printf("Exit ERROR: %#O\n", msg);
+    cog_push(s);
+    // parse the prelude
+    if (!run(cog_make_identifier_c("Parse"), NULL)) {
+        fprintf(stderr, "Failed to parse prelude\n");
+        goto end;
     }
+    // run the block to make it into a closure
+    if (!run(cog_pop(), NULL)) {
+        fprintf(stderr, "Failed to close prelude\n");
+        goto end;
+    }
+    // Then run the closure
+    if (!run(cog_pop(), cog_box_bool(false))) {
+        fprintf(stderr, "Failed to run prelude\n");
+        goto end;
+    }
+
+    // Run user script
+    cog_push(cog_string("Test-builtin"));
+    if (!run(cog_make_identifier_c("Parse"), NULL)) {
+        fprintf(stderr, "Failed to parse user script\n");
+        goto end;
+    }
+    if (!run(cog_pop(), NULL)) {
+        fprintf(stderr, "Failed to close user script\n");
+        goto end;
+    }
+    if (!run(cog_pop(), cog_box_bool(false))) {
+        fprintf(stderr, "Failed to run user script\n");
+        goto end;
+    }
+    end:;
+    clock_t end_ticks = clock();
 
     printf("%zu cells used at exit\n", cog_get_num_cells_used());
     printf("Execution time: %f seconds\n", (double)(end_ticks - start_ticks) / CLOCKS_PER_SEC);
