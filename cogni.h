@@ -521,16 +521,23 @@ cog_object* cog_obj_push_self();
 /**
  * Sets a variable in the current scope.
  */
-void cog_set_var(cog_object* identifier, cog_object* value);
+void cog_defun(cog_object*, cog_object*);
 
 /**
- * Gets a variable from the current scope(s).
- * @param identifier The identifier of the variable.
- * @param found A pointer to a boolean that will be set to true
- * if the variable was found, or false if it is not defined.
- * @return The value of the variable.
+ * Creates a variable object from a value. Variable objects
+ * are special objects that when run will do nothing but push
+ * their value.
  */
-cog_object* cog_get_var(cog_object* identifier, bool* found);
+cog_object* cog_make_var(cog_object*);
+
+/**
+ * Gets a defined function from the current scope(s).
+ * @param identifier The identifier of the function.
+ * @param found A pointer to a boolean that will be set to true
+ * if the function was defined, or false if it is not defined.
+ * @return The value of the function. May be NULL.
+ */
+cog_object* cog_get_fun(cog_object* identifier, bool* found);
 
 /**
  * Pushes a new empty scope onto the scope stack.

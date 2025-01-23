@@ -323,7 +323,7 @@ void cog_reverse_list_inplace(cog_object** list) {
 
 // MARK: ENVIRONMENT
 
-void cog_set_var(cog_object* identifier, cog_object* value) {
+void cog_defun(cog_object* identifier, cog_object* value) {
     cog_object* top_scope = COG_GLOBALS.scopes->data;
     cog_object* pair = cog_assoc(top_scope, identifier, cog_same_identifiers);
     if (pair) {
@@ -336,7 +336,7 @@ void cog_set_var(cog_object* identifier, cog_object* value) {
     }
 }
 
-cog_object* cog_get_var(cog_object* identifier, bool* found) {
+cog_object* cog_get_fun(cog_object* identifier, bool* found) {
     COG_ITER_LIST(COG_GLOBALS.scopes, scope) {
         cog_object* pair = cog_assoc(scope, identifier, cog_same_identifiers);
         if (pair) {
@@ -663,7 +663,7 @@ cog_object* m_run_identifier() {
     cog_object* cookie = cog_pop();
     // first look up definition
     bool found = false;
-    cog_object* def = cog_get_var(self, &found);
+    cog_object* def = cog_get_fun(self, &found);
     if (found) {
         // push the definition instead
         cog_run_next(def, NULL, cookie);
@@ -1835,7 +1835,7 @@ cog_modfunc fne_parser_handle_let = {
 };
 
 cog_obj_type ot_def_or_let_special = {"[[Parser::Special::DefOrLet]]", cog_walk_only_next, NULL};
-cog_obj_type ot_pusher_special = {"[[Parser::Special::LetPusher]]", cog_walk_only_next, NULL};
+cog_obj_type ot_var = {"Var", cog_walk_only_next, NULL};
 
 cog_object* make_def_or_let_special_obj(cog_object* what, bool is_def) {
     cog_object* obj = cog_make_obj(&ot_def_or_let_special);
@@ -1844,8 +1844,8 @@ cog_object* make_def_or_let_special_obj(cog_object* what, bool is_def) {
     return obj;
 }
 
-cog_object* make_pusher_special_obj(cog_object* what) {
-    cog_object* obj = cog_make_obj(&ot_pusher_special);
+cog_object* cog_make_var(cog_object* what) {
+    cog_object* obj = cog_make_obj(&ot_var);
     obj->next = what;
     return obj;
 }
@@ -1855,7 +1855,7 @@ cog_object* m_def_or_let_run() {
     bool is_def = self->as_int;
     cog_object* symbol = self->next;
     cog_object* value = cog_pop();
-    cog_set_var(symbol, is_def ? value : make_pusher_special_obj(value));
+    cog_defun(symbol, is_def ? value : cog_make_var(value));
     return NULL;
 }
 cog_object_method ome_def_or_let_run = {&ot_def_or_let_special, COG_M_RUN_SELF, m_def_or_let_run};
@@ -1870,12 +1870,12 @@ cog_object* m_def_or_let_stringify() {
 }
 cog_object_method ome_def_or_let_stringify = {&ot_def_or_let_special, COG_M_STRINGIFY_SELF, m_def_or_let_stringify};
 
-cog_object* m_pusher_run_self() {
+cog_object* m_var_run_self() {
     cog_object* self = cog_pop();
     cog_push(self->next);
     return NULL;
 }
-cog_object_method ome_pusher_run = {&ot_pusher_special, COG_M_RUN_SELF, m_pusher_run_self};
+cog_object_method ome_var_run = {&ot_var, COG_M_RUN_SELF, m_var_run_self};
 
 cog_object* fn_parser_transform_def_or_let() {
     cog_object* cookie = cog_pop();
@@ -2048,7 +2048,7 @@ static cog_object_method* builtin_objfunc_table[] = {
     &ome_block_stringify,
     &ome_def_or_let_run,
     &ome_def_or_let_stringify,
-    &ome_pusher_run,
+    &ome_var_run,
     NULL
 };
 
