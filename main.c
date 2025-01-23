@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include "cogni.h"
 #include "prelude.h"
@@ -31,7 +32,9 @@ int main(int argc, char** argv) {
     cog_run_next(cog_make_identifier_c("Print"), NULL, NULL);
     cog_run_next(cog_make_identifier_c("Parse"), NULL, NULL);
 
+    clock_t start_ticks = clock();
     cog_object* end = cog_mainloop(NULL);
+    clock_t end_ticks = clock();
 
     if (cog_same_identifiers(end, cog_error())) {
         cog_object* msg = cog_pop();
@@ -39,6 +42,7 @@ int main(int argc, char** argv) {
     }
 
     printf("%zu cells used at exit\n", cog_get_num_cells_used());
+    printf("Execution time: %f seconds\n", (double)(end_ticks - start_ticks) / CLOCKS_PER_SEC);
 
     cog_quit();
     return 0;
