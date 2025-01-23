@@ -64,6 +64,14 @@ cog_object* cog_error() {
     return COG_GLOBALS.error_sym;
 }
 
+cog_object* cog_on_exit() {
+    return COG_GLOBALS.on_exit_sym;
+}
+
+cog_object* cog_on_enter() {
+    return COG_GLOBALS.on_enter_sym;
+}
+
 cog_object* cog_get_stdout() {
     return COG_GLOBALS.stdout_stream;
 }
@@ -640,7 +648,7 @@ cog_object* cog_make_identifier(cog_object* string) {
 
 cog_object* m_stringify_identifier() {
     cog_object* i = cog_pop();
-    cog_pop(); // ignore cookie
+    cog_pop(); // ignore readably
     cog_push(cog_explode_identifier(i));
     return NULL;
 }
@@ -1172,12 +1180,11 @@ cog_object_method ome_bfunction_run = {&ot_bfunction, COG_M_RUN_SELF, m_bfunctio
 
 // MARK: BLOCKS
 
-cog_obj_type ot_block = {"Block", cog_walk_both, NULL};
+cog_obj_type ot_block = {"Block", cog_walk_only_next, NULL};
 
 cog_object* cog_make_block(cog_object* commands) {
     assert(!commands || !commands->type);
     cog_object* obj = cog_make_obj(&ot_block);
-    obj->data = NULL;
     obj->next = commands;
     return obj;
 }

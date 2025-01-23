@@ -503,6 +503,16 @@ cog_object* cog_not_implemented();
 cog_object* cog_error();
 
 /**
+ * Returns the status identifier used for context teardown handlers.
+ */
+cog_object* cog_on_exit();
+
+/**
+ * Returns the status identifier used for context setup handlers.
+ */
+cog_object* cog_on_enter();
+
+/**
  * An implementation for the `COG_M_RUN_SELF` well-known method for
  * objects that evaluate to themselves.
  */
