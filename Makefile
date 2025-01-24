@@ -1,7 +1,6 @@
-.PHONY: test run cleanexec cleanlogs stresstest cleanexec prelude.h cleanall
-
-.WAIT: # this line should not be necessary, but it is somehow
-test: stresstest .WAIT cleanexec
+.PHONY: test run cleanexec cleanlogs stresstest cleanexec prelude.inc clean
+.NOPARALLEL: # cSpell: ignore NOPARALLEL
+test: stresstest cleanexec
 
 CFLAGS += -g1 -O0 -Wuninitialized -Wno-unused-command-line-argument -lm # cSpell: ignore Wuninitialized
 ifeq ($(MODE), cpp)
@@ -15,7 +14,7 @@ TESTFILES := $(basename $(wildcard cognac/tests/*.cog))
 C_FILES = $(wildcard *.c)
 MODULES := $(C_FILES:.c=.o)
 
-prelude.h: cognac/src/prelude.cog
+prelude.inc: cognac/src/prelude.cog
 	xxd -i cognac/src/prelude.cog > prelude.inc
 
 cogni: $(MODULES) prelude.inc
@@ -30,4 +29,4 @@ stresstest: cogni
 cleanlogs:
 	rm -f cognac/tests/*.log
 
-cleanall: cleanexec cleanlogs
+clean: cleanexec cleanlogs
