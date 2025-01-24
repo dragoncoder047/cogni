@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 
 #include "cogni.h"
 #include "files.h"
@@ -48,12 +47,9 @@ int main(int argc, char** argv) {
     cog_set_stdin(cog_open_file("/dev/stdin", "r"));
     cog_set_stderr(cog_open_file("/dev/stderr", "w"));
 
-    cog_object* s = cog_string_from_bytes((char*)cognac_src_prelude_cog, cognac_src_prelude_cog_len);
 
-
-    clock_t start_ticks = clock();
-    cog_push(s);
     // parse the prelude
+    cog_push(cog_string_from_bytes((char*)cognac_src_prelude_cog, cognac_src_prelude_cog_len));
     if (!run(cog_make_identifier_c("Parse"), NULL)) {
         printf("Error parsing prelude\n");
         goto end;
