@@ -19,8 +19,8 @@ cog_modfunc* m_test_table[] = {
 
 cog_module test = {"Test", m_test_table, NULL, NULL};
 
-bool run(cog_object* what, cog_object* cookie) {
-    cog_run_next(what, NULL, cookie);
+bool do_top(cog_object* cookie) {
+    cog_run_next(cog_pop(), NULL, cookie);
     cog_object* end_status = cog_mainloop(NULL);
 
     if (cog_same_identifiers(end_status, cog_error())) {
@@ -35,17 +35,39 @@ bool run(cog_object* what, cog_object* cookie) {
     }
 }
 
+bool run(cog_object* obj, const char* what) {
+    // parse it
+    cog_push(obj);
+    cog_push(cog_make_identifier_c("Parse"));
+    if (!do_top(NULL)) {
+        printf("Error parsing %s\n", what);
+        return false;
+    }
+    // run the block to make it into a closure
+    if (!do_top(NULL)) {
+        printf("Error processing %s\n", what);
+        return false;
+    }
+    // Then run the closure
+    if (!do_top(cog_box_bool(false))) {
+        printf("Error running %s\n", what);
+        return false;
+    }
+    return true;
+}
+
 void repl() {
     printf("ERROR: REPL not implemented yet\n");
     abort();
 }
 
-void usage() {
-    printf("Usage: cogni [filename]\n");
+void usage(const char* argv0) {
+    printf("Usage: %s [filename]\n", argv0);
+    printf("   or: %s -c \"commands\"\n", argv0);
     exit(EXIT_FAILURE);
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char* argv[]) {
     cog_init();
     cog_add_module(&test);
     cog_add_module(&m_file);
@@ -55,46 +77,24 @@ int main(int argc, char** argv) {
 
 
     // parse the prelude
-    cog_push(cog_string_from_bytes((char*)cognac_src_prelude_cog, cognac_src_prelude_cog_len));
-    if (!run(cog_make_identifier_c("Parse"), NULL)) {
-        printf("Error parsing prelude\n");
-        goto end;
-    }
-    // run the block to make it into a closure
-    if (!run(cog_pop(), NULL)) {
-        printf("Error processing prelude\n");
-        goto end;
-    }
-    // Then run the closure
-    if (!run(cog_pop(), cog_box_bool(false))) {
-        printf("Error running prelude\n");
-        goto end;
-    }
+    cog_object* prelude = cog_string_from_bytes((char*)cognac_src_prelude_cog, cognac_src_prelude_cog_len);
+    if (!run(prelude, "prelude")) goto end;
 
     // Run user script
-
+    cog_object* userscript = NULL;
     if (argc == 1) repl();
     else if (argc == 2) {
         char* filename = argv[1];
-        cog_push(cog_open_file(filename, "r"));
-        if (errno == ENOENT) {
-            fprintf(stderr, "Error: file %s not found\n", filename);
+        userscript = cog_open_file(filename, "r");
+        if (errno) {
+            fprintf(stderr, "%s: %s: %s\n", argv[0], filename, strerror(errno));
             goto end;
         }
-    } else usage();
+    } else if (argc == 3 && !strcmp(argv[1], "-c")) {
+        userscript = cog_string(argv[2]);
+    } else usage(argv[0]);
 
-    if (!run(cog_make_identifier_c("Parse"), NULL)) {
-        printf("Error parsing user script\n");
-        goto end;
-    }
-    if (!run(cog_pop(), NULL)) {
-        printf("Error processing user script\n");
-        goto end;
-    }
-    if (!run(cog_pop(), cog_box_bool(false))) {
-        printf("Error running user script\n");
-        goto end;
-    }
+    run(userscript, "user script");
     end:
     cog_quit();
     return 0;
