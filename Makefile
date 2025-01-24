@@ -13,7 +13,7 @@ endif
 
 TESTFILES := $(basename $(wildcard cognac/tests/*.cog))
 C_FILES = $(wildcard *.c)
-MODULES := $(C_FILES:.c=.o)
+MODULES := $(C_FILES:.c=.o) -lm
 
 prelude.h: cognac/src/prelude.cog
 	xxd -i cognac/src/prelude.cog > prelude.inc
