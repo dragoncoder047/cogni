@@ -7,7 +7,7 @@ errors = 0
 crashes = 0
 
 
-def test(file, process):
+def test(file: str, process: subprocess.Popen):
     global successes
     global failures
     global errors
