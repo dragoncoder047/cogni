@@ -458,6 +458,11 @@ cog_object* cog_mainloop(cog_object* status) {
         cog_object* when = cmd->data;
         cog_object* which = cmd->next->data;
         cog_object* cookie = cmd->next->next;
+        if (which == NULL) {
+            fprintf(stderr, "got NULL as command in command queue\n");
+            print_backtrace();
+            abort();
+        }
         bool is_normal_exec = cog_same_identifiers(status, when);
         if (is_normal_exec || cog_same_identifiers(cog_on_exit(), when)) {
             cog_push(cookie);
@@ -486,7 +491,7 @@ cog_object* cog_mainloop(cog_object* status) {
 
 cog_object* cog_obj_push_self() {
     cog_object* self = cog_pop();
-    cog_pop();
+    cog_pop(); // ignore cookie
     cog_push(self);
     return NULL;
 }
@@ -505,7 +510,7 @@ cog_integer cog_unbox_int(cog_object* obj) {
 }
 cog_object* int_printself() {
     cog_object* num = cog_pop();
-    cog_pop();
+    cog_pop(); // ignore cookie
     char buffer[21];
     snprintf(buffer, sizeof(buffer), "%" PRId64, num->as_int);
     cog_push(cog_string(buffer));
@@ -526,7 +531,7 @@ bool cog_unbox_bool(cog_object* obj) {
 }
 cog_object* bool_printself() {
     cog_object* num = cog_pop();
-    cog_pop();
+    cog_pop(); // ignore cookie
     char buffer[6];
     snprintf(buffer, sizeof(buffer), "%s", num->as_int ? "True" : "False");
     cog_push(cog_string(buffer));
@@ -547,7 +552,7 @@ cog_float cog_unbox_float(cog_object* obj) {
 }
 cog_object* float_printself() {
     cog_object* num = cog_pop();
-    cog_pop();
+    cog_pop(); // ignore cookie
     char buffer[32];
     snprintf(buffer, sizeof(buffer), "%lg", num->as_float);
     cog_push(cog_string(buffer));
@@ -725,7 +730,6 @@ bool cog_same_identifiers(cog_object* s1, cog_object* s2) {
     if (!s1 && !s2) return true;
     if (!s1 || !s2) return false;
     assert(s1->type == &ot_identifier);
-    if (!(s2->type == &ot_identifier)) print_backtrace();
     assert(s2->type == &ot_identifier);
     return !cog_strcasecmp(cog_explode_identifier(s1), cog_explode_identifier(s2));
 }
@@ -1888,6 +1892,7 @@ cog_object_method ome_def_or_let_stringify = {&ot_def_or_let_special, COG_M_STRI
 
 cog_object* m_var_run_self() {
     cog_object* self = cog_pop();
+    cog_pop(); // ignore cookie
     cog_push(self->next);
     return NULL;
 }

@@ -7,14 +7,14 @@ errors = 0
 crashes = 0
 
 
-def test(file: str, process: subprocess.Popen):
+def test(file: str, process: subprocess.Popen, pad_length: int):
     global successes
     global failures
     global errors
     global crashes
-    print("Testing: ", file, end="... ")
+    print("Testing", file.ljust(pad_length), end=" :: ")
     exit_code = process.wait()
-    out = process.stdout.read()
+    out: bytes = process.stdout.read()
     if exit_code != 0:
         crashes += 1
         print("CRASH", end=" ")
@@ -30,15 +30,17 @@ def test(file: str, process: subprocess.Popen):
     with open(file.replace(".cog", ".log"), "wb") as f:
         f.write(out)
     print()
+    if b"assertion failed" in out.lower() or b"segfault" in out.lower():
+        print(out.decode())
 
 
 test_files = sorted(glob.glob("cognac/tests/*.cog"))
 test_commands = ["./cogni " + file for file in test_files]
 test_processes = [subprocess.Popen(
-    command, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+    command, shell=True, stderr=subprocess.STDOUT, stdout=subprocess.PIPE)
     for command in test_commands]
-for p in zip(test_files, test_processes):
-    test(p[0], p[1])
+for f, p in zip(test_files, test_processes):
+    test(f, p, max(map(len, test_files)))
 
 print("Successes:", successes)
 print(" Failures:", failures)
