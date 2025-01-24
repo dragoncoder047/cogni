@@ -39,6 +39,11 @@ void repl() {
     abort();
 }
 
+void usage() {
+    printf("Usage: cogni [filename]\n");
+    exit(EXIT_FAILURE);
+}
+
 int main(int argc, char** argv) {
     cog_init();
     cog_add_module(&test);
@@ -67,11 +72,12 @@ int main(int argc, char** argv) {
 
     // Run user script
 
-    if (argc == 0) repl();
-    else {
+    if (argc == 1) repl();
+    else if (argc == 2) {
         char* filename = argv[1];
         cog_push(cog_open_file(filename, "r"));
-    }
+    } else usage();
+
     if (!run(cog_make_identifier_c("Parse"), NULL)) {
         printf("Error parsing user script\n");
         goto end;
