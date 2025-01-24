@@ -1,3 +1,4 @@
+#define _FORTIFY_SOURCE 3
 #include "cogni.h"
 
 #include <stdlib.h>
@@ -14,7 +15,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <stdarg.h>
-
+#include <math.h>
 
 #ifndef cog_malloc
 #define cog_malloc malloc
@@ -373,6 +374,21 @@ cog_object* cog_pop() {
     return cog_pop_from(&COG_GLOBALS.stack);
 }
 
+size_t cog_stack_length() {
+    size_t len = 0;
+    COG_ITER_LIST(COG_GLOBALS.stack, _) len++;
+    return len;
+}
+
+bool cog_stack_has_at_least(size_t n) {
+    size_t len = 0;
+    COG_ITER_LIST(COG_GLOBALS.stack, _) {
+        len++;
+        if (len >= n) return true;
+    }
+    return false;
+}
+
 bool cog_is_stack_empty() {
     return COG_GLOBALS.stack == NULL;
 }
@@ -469,7 +485,9 @@ cog_object* cog_mainloop(cog_object* status) {
 }
 
 cog_object* cog_obj_push_self() {
+    cog_object* self = cog_pop();
     cog_pop();
+    cog_push(self);
     return NULL;
 }
 
@@ -531,7 +549,7 @@ cog_object* float_printself() {
     cog_object* num = cog_pop();
     cog_pop();
     char buffer[32];
-    snprintf(buffer, sizeof(buffer), "%Lg", num->as_float);
+    snprintf(buffer, sizeof(buffer), "%lg", num->as_float);
     cog_push(cog_string(buffer));
     return NULL;
 }
@@ -621,7 +639,7 @@ cog_object* cog_make_identifier_c(const char* const name) {
         for (size_t i = 0; mod->table[i] != NULL; i++) {
             cog_modfunc* m = mod->table[i];
             // !!! not case sensitive
-            if (m->when == COG_FUNC && !strcasecmp(m->name, name)) {
+            if ((m->when == COG_FUNC || m->when == COG_COOKIEFUNC) && !strcasecmp(m->name, name)) {
                 // found desired modfunc
                 out->as_fun = m;
                 goto done;
@@ -649,7 +667,7 @@ cog_object* cog_make_identifier(cog_object* string) {
         for (size_t i = 0; mod->table[i] != NULL; i++) {
             cog_modfunc* m = mod->table[i];
             // !!! not case sensitive
-            if (m->when == COG_FUNC && !cog_strcasecmp_c(string, m->name)) {
+            if ((m->when == COG_FUNC || m->when == COG_COOKIEFUNC) && !cog_strcasecmp_c(string, m->name)) {
                 // found desired modfunc
                 out->as_fun = m;
                 goto done;
@@ -1119,7 +1137,7 @@ cog_obj_type ot_bfunction = {"BuiltinFunction", NULL};
 
 cog_object* cog_make_bfunction(cog_modfunc* func) {
     assert(func);
-    assert(func->when == COG_FUNC);
+    assert(func->when == COG_FUNC || func->when == COG_COOKIEFUNC);
     cog_object* obj = cog_make_obj(&ot_bfunction);
     obj->as_fun = func;
     return obj;
@@ -1128,6 +1146,7 @@ cog_object* cog_make_bfunction(cog_modfunc* func) {
 cog_object* m_bfunction_run() {
     cog_object* self = cog_pop();
     cog_modfunc* f = self->as_fun;
+    if (f->when == COG_FUNC) cog_pop(); // discard cookie
     // jump straight into the function
     return f->fun();
 }
@@ -1187,7 +1206,7 @@ cog_object* fn_closure_restore_scope() {
 }
 cog_modfunc fne_closure_restore_scope = {
     "[[Closure::RestoreCallerScope]]",
-    COG_FUNC,
+    COG_COOKIEFUNC,
     fn_closure_restore_scope,
     NULL,
 };
@@ -1390,7 +1409,7 @@ cog_object* fn_parser_handle_token() {
 }
 cog_modfunc fne_parser_handle_token = {
     "[[Parser::HandleToken]]",
-    COG_FUNC,
+    COG_COOKIEFUNC,
     fn_parser_handle_token,
     doc_parser_internals,
 };
@@ -1469,7 +1488,7 @@ cog_object* fn_parser_nextitem() {
 }
 cog_modfunc fne_parser_nextitem = {
     "[[Parser::NextItem]]",
-    COG_FUNC,
+    COG_COOKIEFUNC,
     fn_parser_nextitem,
     doc_parser_internals,
 };
@@ -1567,7 +1586,7 @@ cog_object* fn_parser_handle_float() {
         cog_buffer_to_cstring(s, buffer, sizeof(buffer));
         cog_float i;
         int len = 0;
-        int filled = sscanf(buffer, "%Lg%n", &i, &len);
+        int filled = sscanf(buffer, "%lg%n", &i, &len);
         if (len == cog_strlen(s)) {
             cog_push(cog_box_float(i));
             return NULL;
@@ -1888,7 +1907,7 @@ cog_object* fn_parser_transform_def_or_let() {
 }
 cog_modfunc fne_parser_transform_def_or_let = {
     "[[Parser::TransformDefOrLet]]",
-    COG_FUNC,
+    COG_COOKIEFUNC,
     fn_parser_transform_def_or_let,
     doc_parser_internals
 };
@@ -1956,13 +1975,12 @@ cog_object* fn_parser_parse_block_loop() {
 }
 cog_modfunc fne_parser_parse_block_loop = {
     "[[Parser::ParseBlockLoop]]",
-    COG_FUNC,
+    COG_COOKIEFUNC,
     fn_parser_parse_block_loop,
     doc_parser_internals
 };
 
 cog_object* fn_parse() {
-    cog_pop(); // discard cookie
     cog_object* stream = cog_pop();
     if (stream == NULL) {
         cog_push(NULL);
@@ -1989,20 +2007,161 @@ cog_modfunc fne_parse = {
 
 // MARK: BUILTIN FUNCTIONS
 
-// TODO: implement ALL of these
+cog_object* fn_empty() {
+    cog_push(NULL);
+    return NULL;
+}
+cog_modfunc fne_empty = {
+    "Empty",
+    COG_FUNC,
+    fn_empty,
+    "Return an empty list."
+};
+
+#define GET_TYPENAME_STRING(obj) (obj && obj->type ? obj->type->typename : "NULL")
+#define _NUMBERBODY(op, either_float_type, both_ints_type, both_ints_cast) \
+    COG_ENSURE_N_ITEMS(2); \
+    cog_object* a = cog_pop(); \
+    cog_object* b = cog_pop(); \
+    if (a && b ) { \
+        if ((a->type == &ot_int || a->type == &ot_float) && (b->type == &ot_int || b->type == &ot_float)) { \
+            if (a->type == &ot_int && b->type == &ot_int) { \
+                cog_push(cog_box_##both_ints_type(both_ints_cast b->as_int op both_ints_cast a->as_int)); \
+            } else { \
+                cog_float a_val = (a->type == &ot_int) ? (cog_float)a->as_int : a->as_float; \
+                cog_float b_val = (b->type == &ot_int) ? (cog_float)b->as_int : b->as_float; \
+                cog_push(cog_box_##either_float_type(b_val op a_val)); \
+            } \
+            return NULL; \
+        } \
+    } \
+    cog_push(cog_sprintf("Can't apply operator %s to %s and %s", #op, \
+        GET_TYPENAME_STRING(a), GET_TYPENAME_STRING(b))); \
+    return cog_error();
+
+cog_object* fn_plus() { _NUMBERBODY(+, float, int, ) }
+cog_object* fn_minus() { _NUMBERBODY(-, float, int, ) }
+cog_object* fn_times() { _NUMBERBODY(*, float, int, ) }
+cog_object* fn_divide() { _NUMBERBODY(/, float, float, (cog_float)) }
+cog_object* fn_less() { _NUMBERBODY(<, bool, bool, ) }
+cog_object* fn_greater() { _NUMBERBODY(>, bool, bool, ) }
+cog_object* fn_lesseq() { _NUMBERBODY(<=, bool, bool, ) }
+cog_object* fn_greatereq() { _NUMBERBODY(>=, bool, bool, ) } // cSpell: ignore greatereq
+cog_object* fn_pow() {
+    COG_ENSURE_N_ITEMS(2);
+    cog_object* a = cog_pop();
+    cog_object* b = cog_pop();
+    cog_float a_val, b_val;
+    COG_GET_NUMBER(a, a_val);
+    COG_GET_NUMBER(b, b_val);
+    cog_push(cog_box_float(pow(b_val, a_val)));
+    return NULL;
+}
+
+cog_modfunc fne_plus = {"+", COG_FUNC, fn_plus, "Add two numbers."};
+cog_modfunc fne_minus = {"-", COG_FUNC, fn_minus, "Subtract two numbers."};
+cog_modfunc fne_times = {"*", COG_FUNC, fn_times, "Multiply two numbers."};
+cog_modfunc fne_divide = {"/", COG_FUNC, fn_divide, "Divide two numbers."};
+cog_modfunc fne_less = {"<", COG_FUNC, fn_less, "Check if a is less than b."};
+cog_modfunc fne_greater = {">", COG_FUNC, fn_greater, "Check if a is greater than b."};
+cog_modfunc fne_lesseq = {"<=", COG_FUNC, fn_lesseq, "Check if a is less than or equal to b."};
+cog_modfunc fne_greatereq = {">=", COG_FUNC, fn_greatereq, "Check if a is greater than or equal to b."};
+cog_modfunc fne_pow = {"^", COG_FUNC, fn_pow, "Get the power of a to b."};
+
+cog_object* fn_eq() {
+    COG_ENSURE_N_ITEMS(2);
+    cog_object* a = cog_pop();
+    cog_object* b = cog_pop();
+    if (a && b) {
+        if (a->type == b->type) {
+            if (a->type == &ot_int) {
+                cog_push(cog_box_bool(a->as_int == b->as_int));
+            } else if (a->type == &ot_float) {
+                cog_push(cog_box_bool(a->as_float == b->as_float));
+            } else if (a->type == &ot_bool) {
+                cog_push(cog_box_bool(a->as_int == b->as_int));
+            } else if (a->type == &ot_identifier) {
+                cog_push(cog_box_bool(cog_same_identifiers(a, b)));
+            } else if (a->type == &ot_symbol) {
+                cog_push(cog_box_bool(cog_same_identifiers(a->next, b->next)));
+            } else if (a->type == &ot_buffer) {
+                cog_push(cog_box_bool(cog_strcmp(a, b) == 0));
+            } else {
+                cog_push(cog_box_bool(a == b));
+            }
+            return NULL;
+        }
+    } else if (a == b) {
+        cog_push(cog_box_bool(true));
+    } else {
+        cog_push(cog_box_bool(false));
+    }
+    return NULL;
+}
+cog_modfunc fne_eq = {"==", COG_FUNC, fn_eq, "Check if two objects are equal."};
+
+cog_object* fn_if() {
+    COG_ENSURE_N_ITEMS(3);
+    cog_object* cond = cog_pop();
+    cog_object* iftrue = cog_pop();
+    cog_object* iffalse = cog_pop();
+    COG_ENSURE_TYPE(cond, ot_bool);
+    cog_push(cond->as_int ? iftrue : iffalse);
+    return NULL;
+}
+cog_modfunc fne_if = {"if", COG_FUNC, fn_if, "If cond is true, return iftrue, else return iffalse."};
+
+cog_object* fn_print() {
+    COG_ENSURE_N_ITEMS(1);
+    cog_object* obj = cog_pop();
+    cog_printf("%#O\n", obj);
+    return NULL;
+}
+cog_modfunc fne_print = {"Print", COG_FUNC, fn_print, "Print an object to stdout, with a newline."};
+
+cog_object* fn_put() {
+    COG_ENSURE_N_ITEMS(1);
+    cog_object* obj = cog_pop();
+    cog_printf("%#O", obj);
+    return NULL;
+}
+cog_modfunc fne_put = {"Put", COG_FUNC, fn_put, "Print an object to stdout, without a newline."};
+
+cog_object* fn_do() {
+    COG_ENSURE_N_ITEMS(1);
+    cog_object* obj = cog_pop();
+    cog_run_next(obj, NULL, NULL);
+    return NULL;
+}
+cog_modfunc fne_do = {"Do", COG_FUNC, fn_do, "Run the item on the stack."};
+
+cog_object* fn_random() {
+    COG_ENSURE_N_ITEMS(2);
+    cog_object* low = cog_pop();
+    cog_object* high = cog_pop();
+    cog_float lowf, highf;
+    COG_GET_NUMBER(low, lowf);
+    COG_GET_NUMBER(high, highf);
+    if (highf > lowf) {
+        cog_float tmp = highf;
+        highf = lowf;
+        lowf = tmp;
+    }
+    cog_float diff = highf - lowf;
+    cog_float x = (cog_float)rand() / (cog_float)(RAND_MAX / diff) + lowf;
+    cog_push(cog_box_float(x));
+    return NULL;
+}
 
 // MARK: BUILTINS TABLES
 
 static cog_modfunc* builtin_modfunc_table[] = {
-    &fne_parser_nextitem,
     &fne_parser_rule_special_chars,
     &fne_parser_rule_break_chars,
     &fne_parser_handle_comments,
     &fne_parser_ignore_whitespace,
-    &fne_parser_handle_token,
     &fne_parser_handle_def, // must be before fne_parser_handle_identifiers
     &fne_parser_handle_let,
-    &fne_parser_transform_def_or_let,
     &fne_parser_handle_int,
     &fne_parser_handle_float,
     &fne_parser_handle_bool_true,
@@ -2015,9 +2174,29 @@ static cog_modfunc* builtin_modfunc_table[] = {
     &fne_parser_discard_informal_syntax,
     &fne_parser_handle_identifiers, // must be last i guess
     &fne_parser_parse_block_loop,
-
-    &fne_closure_restore_scope,
     &fne_parse,
+    &fne_parser_nextitem,
+    &fne_parser_handle_token,
+    &fne_parser_transform_def_or_let,
+    &fne_closure_restore_scope,
+    // math functions
+    &fne_empty,
+    &fne_plus,
+    &fne_minus,
+    &fne_times,
+    &fne_divide,
+    &fne_less,
+    &fne_greater,
+    &fne_lesseq,
+    &fne_greatereq,
+    &fne_pow,
+    &fne_eq,
+    // control flow
+    &fne_if,
+    &fne_do,
+    // IO
+    &fne_print,
+    &fne_put,
     NULL
 };
 

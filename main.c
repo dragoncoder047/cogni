@@ -1,3 +1,4 @@
+#define _FORTIFY_SOURCE 3
 #include <stdio.h>
 #include <stdlib.h>
 

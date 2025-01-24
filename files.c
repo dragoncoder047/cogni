@@ -1,3 +1,4 @@
+#define _FORTIFY_SOURCE 3
 #include "files.h"
 
 static void closefile(cog_object* stream) {

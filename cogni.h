@@ -17,13 +17,14 @@ extern "C" {
 
 #if __SIZEOF_POINTER__ == 8
 typedef long long cog_integer;
-typedef long double cog_float;
 #elif __SIZEOF_POINTER__ == 4
 typedef long cog_integer;
-typedef double cog_float;
 #else
 #error "not enough bits"
 #endif
+
+typedef double cog_float;
+
 #define COG_MAX_CHARS_PER_BUFFER_CHUNK (__SIZEOF_POINTER__ - 2)
 
 // MARK: TYPES N' STUFF
@@ -65,7 +66,8 @@ struct cog_obj_type {
 };
 
 enum cog_api_func_phase {
-    COG_FUNC, // (...args cookie -- ...any)
+    COG_FUNC, // (...args -- ...any)
+    COG_COOKIEFUNC, // (...args cookie -- ...any)
     COG_PARSE_TOKEN_HANDLER, // (stream buffer -- ...any)
     COG_PARSE_INDIV_CHAR, // (stream ch -- ...any)
     COG_PARSE_END_CHAR, // (stream ch -- ...any)
@@ -462,6 +464,16 @@ cog_object* cog_pop();
 bool cog_is_stack_empty();
 
 /**
+ * Returns the length of the global work stack.
+ */
+size_t cog_stack_length();
+
+/**
+ * Returns true if the global work stack has at least `n` items.
+ */
+bool cog_stack_has_at_least(size_t n);
+
+/**
  * Queues the item to be run next in the main loop.
  * @param item The item to run.
  * @param when The status to run the item with.
@@ -559,12 +571,18 @@ void cog_pop_scope();
 extern cog_obj_type cog_ot_pointer;
 extern cog_obj_type cog_ot_owned_pointer;
 
+/**
+ * Returns early with an error status and the specified message.
+ */
 #define COG_RETURN_ERROR(msg) \
     do { \
         cog_push(msg); \
         return cog_error(); \
     } while (0)
 
+/**
+ * Runs the specified well-known method on an object, returning early with an error status if it fails.
+ */
 #define COG_RUN_WKM_RETURN_IF_ERROR(obj, method) \
     do { \
         cog_object* result__ = cog_run_well_known((obj), (method)); \
@@ -572,8 +590,44 @@ extern cog_obj_type cog_ot_owned_pointer;
     } while (0)
 
 #define COG_MAYBE_DATA(val) ((val) != NULL ? (val)->data : NULL)
+
+/**
+ * Iterates over a list.
+ */
 #define COG_ITER_LIST(list, var) \
     for (cog_object* head__ = (list), *var = COG_MAYBE_DATA(head__); head__ != NULL; head__ = head__->next, var = COG_MAYBE_DATA(head__))
+
+/**
+ * Ensures that there are at least `n` items on the stack, returning early with an error if not.
+ */
+#define COG_ENSURE_N_ITEMS(n) \
+    do { \
+        if (!cog_stack_has_at_least(n)) { \
+            COG_RETURN_ERROR(cog_sprintf("Expected %d items on the stack, but there were only %d", n, cog_stack_length())); \
+        } \
+    } while (0)
+
+/**
+ * Ensures that an object is of a specific type, returning early with an error if not.
+ */
+#define COG_ENSURE_TYPE(obj, typeobj) \
+    do { \
+        if ((obj) == NULL || (obj)->type != &(typeobj)) { \
+            COG_RETURN_ERROR(cog_sprintf("Expected a%s %s, but got %s", strchr("aeiou", tolower((typeobj).typename[0])) ? "n" : "", \
+                (typeobj).typename, (obj) ? (obj)->type->typename : "NULL")); \
+        } \
+    } while (0)
+
+/**
+ * Ensures that an object is one of the numeric types, returning early with an error if not, and storing the float result in the variable
+ */
+#define COG_GET_NUMBER(obj, var) \
+    do { \
+        if ((obj) == NULL || ((obj)->type != &ot_int && (obj)->type != &ot_float && (obj)->type != &ot_bool)) { \
+            COG_RETURN_ERROR(cog_sprintf("Expected a number or boolean, but got %s", (obj) ? (obj)->type->typename : "NULL")); \
+        } \
+        else var = (obj)->type == &ot_float ? (obj)->as_float : (obj)->as_int; \
+    } while (0)
 
 #ifdef __cplusplus
 }
