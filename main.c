@@ -76,6 +76,10 @@ int main(int argc, char** argv) {
     else if (argc == 2) {
         char* filename = argv[1];
         cog_push(cog_open_file(filename, "r"));
+        if (errno == ENOENT) {
+            fprintf(stderr, "Error: file %s not found\n", filename);
+            goto end;
+        }
     } else usage();
 
     if (!run(cog_make_identifier_c("Parse"), NULL)) {
