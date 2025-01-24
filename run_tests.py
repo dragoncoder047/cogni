@@ -6,6 +6,7 @@ failures = 0
 errors = 0
 crashes = 0
 
+
 def test(file, process):
     global successes
     global failures
@@ -30,9 +31,12 @@ def test(file, process):
         f.write(out)
     print()
 
+
 test_files = sorted(glob.glob("cognac/tests/*.cog"))
 test_commands = ["./cogni " + file for file in test_files]
-test_processes = [subprocess.Popen(command, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE) for command in test_commands]
+test_processes = [subprocess.Popen(
+    command, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+    for command in test_commands]
 for p in zip(test_files, test_processes):
     test(p[0], p[1])
 
