@@ -314,14 +314,6 @@ void cog_insert_byte_to_buffer_at(cog_object**, char, size_t);
 void cog_delete_byte_from_buffer_at(cog_object**, size_t);
 
 /**
- * Creates a file stream from a `FILE*` pointer.
- * @param filename The filename associated with the file stream, or `NULL` if it is not known.
- */
-cog_object* cog_make_filestream(FILE*, cog_object*);
-
-cog_object* cog_open_file(const char* const filename, const char* const mode);
-
-/**
  * Creates an empty IO string stream.
  */
 cog_object* cog_empty_io_string();

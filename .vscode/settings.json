@@ -1,5 +1,8 @@
 {
     "cSpell.words": [
         "cogni"
-    ]
+    ],
+    "files.associations": {
+        "prelude.inc": "c"
+    }
 }

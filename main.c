@@ -3,7 +3,8 @@
 #include <time.h>
 
 #include "cogni.h"
-#include "prelude.h"
+#include "files.h"
+#include "prelude.inc"
 
 cog_object* fn_test() {
     cog_printf("Hello, World! My cookie is %O\n", cog_pop());
@@ -42,6 +43,10 @@ void repl() {
 int main(int argc, char** argv) {
     cog_init();
     cog_add_module(&test);
+    cog_add_module(&m_file);
+    cog_set_stdout(cog_open_file("/dev/stdout", "w"));
+    cog_set_stdin(cog_open_file("/dev/stdin", "r"));
+    cog_set_stderr(cog_open_file("/dev/stderr", "w"));
 
     cog_object* s = cog_string_from_bytes((char*)cognac_src_prelude_cog, cognac_src_prelude_cog_len);
 

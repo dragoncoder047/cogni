@@ -1,4 +1,4 @@
-.PHONY: test run cleanexec cleanlogs stresstest cleanexec prelude.h
+.PHONY: test run cleanexec cleanlogs stresstest cleanexec prelude.h cleanall
 
 test: stresstest cleanexec
 
@@ -10,16 +10,20 @@ else
 	CFLAGS += --std=gnu2x
 endif
 
-prelude.h: cognac/src/prelude.cog
-	xxd -i cognac/src/prelude.cog > prelude.h
+TESTFILES := $(basename $(wildcard cognac/tests/*.cog))
+C_FILES = $(wildcard *.c)
+MODULES := $(C_FILES:.c=.o)
 
-cogni: cogni.o main.o prelude.h
-	$(CC) $(CFLAGS) main.o cogni.o -o cogni
+prelude.h: cognac/src/prelude.cog
+	xxd -i cognac/src/prelude.cog > prelude.inc
+
+
+cogni: $(MODULES) prelude.inc
+	$(CC) $(CFLAGS) $(MODULES) -o cogni
 
 cleanexec:
-	rm -f cogni cogni.o main.o
+	rm -f cogni *.o
 
-TESTFILES=$(basename $(wildcard cognac/tests/*.cog))
 stresstest: $(TESTFILES)
 
 $(TESTFILES): cogni
@@ -29,3 +33,5 @@ $(TESTFILES): cogni
 
 cleanlogs:
 	rm -f cognac/tests/*.log
+
+cleanall: cleanexec cleanlogs

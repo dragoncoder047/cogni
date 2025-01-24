@@ -414,6 +414,16 @@ cog_object* cog_run_well_known_strict(cog_object* obj, enum cog_well_known_metho
             default: method_name = "UNKNOWN_METHOD"; break;
         }
         fprintf(stderr, "error: %s not implemented for %s\n", method_name, obj->type ? obj->type->typename : "NULL");
+        COG_ITER_LIST(COG_GLOBALS.modules, modobj) {
+            cog_module* mod = (cog_module*)modobj->as_ptr;
+            if (mod->types == NULL) continue;
+            for (size_t i = 0; mod->types[i] != NULL; i++) {
+                cog_obj_type* t = mod->types[i];
+                if (t == obj->type) goto hasimport;
+            }
+        }
+        fprintf(stderr, "did you forget to import the module?\n");
+        hasimport:
         print_backtrace();
         abort();
     }
@@ -1015,74 +1025,6 @@ void cog_ungetch(cog_object* file, char ch) {
     cog_push(cog_make_character(ch));
     cog_run_well_known_strict(file, COG_SM_UNGETS);
 }
-
-// MARK: FILES
-
-static void df_close_file(cog_object* stream) {
-    if (stream->as_ptr) {
-        FILE* f = stream->as_ptr;
-        if (f != stdin && f != stdout && f != stderr) {
-            fclose(f);
-            stream->as_ptr = NULL;
-        }
-    }
-}
-cog_obj_type ot_file = {"File", cog_walk_only_next, df_close_file};
-
-cog_object* cog_make_filestream(FILE* f, cog_object* filename) {
-    assert(filename == NULL || filename->type == &ot_buffer);
-    cog_object* fo = cog_make_obj(&ot_file);
-    fo->as_ptr = (void*)f;
-    fo->next = filename;
-    return fo;
-}
-
-cog_object* cog_open_file(const char* const filename, const char* const mode) {
-    return cog_make_filestream(fopen(filename, mode), cog_string(filename));
-}
-
-static cog_object* m_file_write() {
-    cog_object* file = cog_pop();
-    cog_object* buf = cog_expect_type_fatal(cog_pop(), &ot_buffer);
-    FILE* f = file->as_ptr;
-    while (buf) {
-        fprintf(f, "%.*s", buf->stored_chars, buf->as_chars);
-        fflush(f);
-        buf = buf->next;
-    }
-    return NULL;
-}
-cog_object_method ome_file_write = {&ot_file, COG_SM_PUTS, m_file_write};
-
-static cog_object* m_file_getch() {
-    cog_object* file = cog_pop();
-    FILE* f = file->as_ptr;
-    if (feof(f)) cog_push(cog_eof());
-    else cog_push(cog_make_character(fgetc(f)));
-    return NULL;
-}
-cog_object_method ome_file_getch = {&ot_file, COG_SM_GETCH, m_file_getch};
-
-static cog_object* m_file_ungets() {
-    cog_object* file = cog_pop();
-    cog_object* buf = cog_expect_type_fatal(cog_pop(), &ot_buffer);
-    FILE* f = file->as_ptr;
-    while (buf) {
-        for (int i = 0; i < buf->stored_chars; i++)
-            ungetc(buf->as_chars[i], f);
-        buf = buf->next;
-    }
-    return NULL;
-}
-cog_object_method ome_file_ungets = {&ot_file, COG_SM_UNGETS, m_file_ungets};
-
-cog_object* m_file_stringify() {
-    cog_object* file = cog_pop();
-    cog_pop(); // ignore readably
-    cog_push(cog_sprintf("<File %O at pos %li>", file->next, ftell((FILE*)file->as_ptr)));
-    return NULL;
-}
-cog_object_method ome_file_stringify = {&ot_file, COG_M_STRINGIFY_SELF, m_file_stringify};
 
 // MARK: STRING STREAMS
 
@@ -2090,10 +2032,6 @@ static cog_object_method* builtin_objfunc_table[] = {
     &ome_identifier_run,
     &ome_symbol_stringify,
     &ome_symbol_run,
-    &ome_file_write,
-    &ome_file_getch,
-    &ome_file_ungets,
-    &ome_file_stringify,
     &ome_buffer_stringify,
     &ome_buffer_run,
     &ome_iostring_write,
@@ -2119,7 +2057,6 @@ static cog_obj_type* builtin_types[] = {
     &ot_identifier,
     &ot_symbol,
     &ot_buffer,
-    &ot_file,
     &ot_iostring,
     &ot_bfunction,
     &ot_parser_sentinel,
@@ -2147,9 +2084,6 @@ void cog_init() {
     COG_GLOBALS.error_sym = cog_make_identifier_c("[[Status::Error]]");
     COG_GLOBALS.on_enter_sym = cog_make_identifier_c("[[Status::OnEnterHandler]]");
     COG_GLOBALS.on_exit_sym = cog_make_identifier_c("[[Status::OnExitHandler]]");
-    cog_set_stdout(cog_open_file("/dev/stdout", "w"));
-    cog_set_stdin(cog_open_file("/dev/stdin", "r"));
-    cog_set_stderr(cog_open_file("/dev/stderr", "w"));
     cog_push_new_scope(); // the global scope
     install_builtins();
 }
