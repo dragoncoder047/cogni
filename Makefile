@@ -3,7 +3,7 @@
 .WAIT: # this line should not be necessary, but it is somehow
 test: stresstest .WAIT cleanexec
 
-CFLAGS += -g1 -O0 -Wuninitialized # cSpell: ignore Wuninitialized
+CFLAGS += -g1 -O0 -Wuninitialized -lm # cSpell: ignore Wuninitialized
 ifeq ($(MODE), cpp)
 	CC := g++
 	CFLAGS += --std=gnu++2c
@@ -13,13 +13,13 @@ endif
 
 TESTFILES := $(basename $(wildcard cognac/tests/*.cog))
 C_FILES = $(wildcard *.c)
-MODULES := $(C_FILES:.c=.o) -lm
+MODULES := $(C_FILES:.c=.o)
 
 prelude.h: cognac/src/prelude.cog
 	xxd -i cognac/src/prelude.cog > prelude.inc
 
 cogni: $(MODULES) prelude.inc
-	$(CC) $(CFLAGS) $(MODULES) -o cogni
+	$(CC) $(MODULES) $(CFLAGS) -o cogni
 
 cleanexec:
 	rm -f cogni *.o
