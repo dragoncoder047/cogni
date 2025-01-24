@@ -2139,19 +2139,71 @@ cog_object* fn_random() {
     COG_ENSURE_N_ITEMS(2);
     cog_object* low = cog_pop();
     cog_object* high = cog_pop();
-    cog_float lowf, highf;
-    COG_GET_NUMBER(low, lowf);
-    COG_GET_NUMBER(high, highf);
-    if (highf > lowf) {
-        cog_float tmp = highf;
-        highf = lowf;
-        lowf = tmp;
+    cog_float n_low, n_high;
+    COG_GET_NUMBER(low, n_low);
+    COG_GET_NUMBER(high, n_high);
+    if (n_high > n_low) {
+        cog_float tmp = n_high;
+        n_high = n_low;
+        n_low = tmp;
     }
-    cog_float diff = highf - lowf;
-    cog_float x = (cog_float)rand() / (cog_float)(RAND_MAX / diff) + lowf;
+    cog_float diff = n_high - n_low;
+    cog_float x = (cog_float)rand() / (cog_float)(RAND_MAX / diff) + n_low;
     cog_push(cog_box_float(x));
     return NULL;
 }
+cog_modfunc fne_random = {"Random", COG_FUNC, fn_random, "Return a random number between low and high."};
+
+cog_object* fn_modulo() {
+    COG_ENSURE_N_ITEMS(2);
+    cog_object* a = cog_pop();
+    cog_object* b = cog_pop();
+    if (a && b && a->type == &ot_int && b->type == &ot_int) {
+        cog_push(cog_box_int(b->as_int % a->as_int));
+    } else {
+        cog_float a_val, b_val;
+        COG_GET_NUMBER(a, a_val);
+        COG_GET_NUMBER(b, b_val);
+        cog_push(cog_box_float(fmod(b_val, a_val)));
+    }
+    return NULL;
+}
+cog_modfunc fne_modulo = {"modulo", COG_FUNC, fn_modulo, "Return the modulo of two numbers."};
+
+cog_object* fn_sqrt() {
+    COG_ENSURE_N_ITEMS(1);
+    cog_object* a = cog_pop();
+    cog_float a_val;
+    COG_GET_NUMBER(a, a_val);
+    cog_push(cog_box_float(sqrt(a_val)));
+    return NULL;
+}
+cog_modfunc fne_sqrt = {"sqrt", COG_FUNC, fn_sqrt, "Return the square root of a number."};
+
+#define _BOOLBODY(op) \
+    COG_ENSURE_N_ITEMS(2); \
+    cog_object* a = cog_pop(); \
+    cog_object* b = cog_pop(); \
+    COG_ENSURE_TYPE(a, ot_bool); \
+    COG_ENSURE_TYPE(b, ot_bool); \
+    cog_push(cog_box_bool(a->as_int op b->as_int)); \
+    return NULL; \
+
+cog_object* fn_or() { _BOOLBODY(||) }
+cog_object* fn_and() { _BOOLBODY(&&) }
+cog_object* fn_xor() { _BOOLBODY(^) }
+cog_modfunc fne_or = {"or", COG_FUNC, fn_or, "Return the logical OR of two booleans."};
+cog_modfunc fne_and = {"and", COG_FUNC, fn_and, "Return the logical AND of two booleans."};
+cog_modfunc fne_xor = {"xor", COG_FUNC, fn_xor, "Return the logical XOR of two booleans."};
+
+cog_object* fn_not() {
+    COG_ENSURE_N_ITEMS(1);
+    cog_object* a = cog_pop();
+    COG_ENSURE_TYPE(a, ot_bool);
+    cog_push(cog_box_bool(!a->as_int));
+    return NULL;
+}
+cog_modfunc fne_not = {"not", COG_FUNC, fn_not, "Return the logical NOT of a boolean."};
 
 // MARK: BUILTINS TABLES
 
@@ -2191,6 +2243,12 @@ static cog_modfunc* builtin_modfunc_table[] = {
     &fne_greatereq,
     &fne_pow,
     &fne_eq,
+    &fne_random,
+    // boolean functions
+    &fne_or,
+    &fne_and,
+    &fne_not,
+    &fne_xor,
     // control flow
     &fne_if,
     &fne_do,
