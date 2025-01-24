@@ -603,7 +603,7 @@ extern cog_obj_type cog_ot_owned_pointer;
 #define COG_ENSURE_N_ITEMS(n) \
     do { \
         if (!cog_stack_has_at_least(n)) { \
-            COG_RETURN_ERROR(cog_sprintf("Expected %d items on the stack, but there were only %d", n, cog_stack_length())); \
+            COG_RETURN_ERROR(cog_sprintf("%s: Expected %d items on the stack, but there were only %d", __func__, n, cog_stack_length())); \
         } \
     } while (0)
 
@@ -612,9 +612,9 @@ extern cog_obj_type cog_ot_owned_pointer;
  */
 #define COG_ENSURE_TYPE(obj, typeobj) \
     do { \
-        if ((obj) == NULL || (obj)->type != &(typeobj)) { \
-            COG_RETURN_ERROR(cog_sprintf("Expected a%s %s, but got %s", strchr("aeiou", tolower((typeobj).typename[0])) ? "n" : "", \
-                (typeobj).typename, (obj) ? (obj)->type->typename : "NULL")); \
+        if ((obj) == NULL || (obj)->type != typeobj) { \
+            COG_RETURN_ERROR(cog_sprintf("Expected %s, but got %s", \
+                (typeobj) ? (typeobj)->typename : "NULL", (obj) ? (obj)->type->typename : "NULL")); \
         } \
     } while (0)
 

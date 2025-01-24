@@ -16,11 +16,12 @@ def test(file):
     global crashes
     print("Testing: ", file, end="... ")
     try:
-        out = subprocess.check_output(["./cogni", file])
-    except subprocess.CalledProcessError:
+        out = subprocess.check_output(
+            ["./cogni", file], stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as e:
         crashes += 1
-        print("CRASH")
-        return
+        print("CRASH", end=" ")
+        out = e.output
     if b"ERROR" in out:
         errors += 1
         print("ERROR", end=" ")

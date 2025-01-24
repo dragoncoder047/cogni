@@ -2105,7 +2105,7 @@ cog_object* fn_if() {
     cog_object* cond = cog_pop();
     cog_object* iftrue = cog_pop();
     cog_object* iffalse = cog_pop();
-    COG_ENSURE_TYPE(cond, ot_bool);
+    COG_ENSURE_TYPE(cond, &ot_bool);
     cog_push(cond->as_int ? iftrue : iffalse);
     return NULL;
 }
@@ -2184,8 +2184,8 @@ cog_modfunc fne_sqrt = {"sqrt", COG_FUNC, fn_sqrt, "Return the square root of a 
     COG_ENSURE_N_ITEMS(2); \
     cog_object* a = cog_pop(); \
     cog_object* b = cog_pop(); \
-    COG_ENSURE_TYPE(a, ot_bool); \
-    COG_ENSURE_TYPE(b, ot_bool); \
+    COG_ENSURE_TYPE(a, &ot_bool); \
+    COG_ENSURE_TYPE(b, &ot_bool); \
     cog_push(cog_box_bool(a->as_int op b->as_int)); \
     return NULL; \
 
@@ -2199,11 +2199,107 @@ cog_modfunc fne_xor = {"xor", COG_FUNC, fn_xor, "Return the logical XOR of two b
 cog_object* fn_not() {
     COG_ENSURE_N_ITEMS(1);
     cog_object* a = cog_pop();
-    COG_ENSURE_TYPE(a, ot_bool);
+    COG_ENSURE_TYPE(a, &ot_bool);
     cog_push(cog_box_bool(!a->as_int));
     return NULL;
 }
 cog_modfunc fne_not = {"not", COG_FUNC, fn_not, "Return the logical NOT of a boolean."};
+
+cog_object* fn_is_number() {
+    COG_ENSURE_N_ITEMS(1);
+    cog_object* a = cog_pop();
+    cog_push(cog_box_bool(a->type == &ot_int || a->type == &ot_float));
+    return NULL;
+}
+cog_modfunc fne_is_number = {"number?", COG_FUNC, fn_is_number, "Return true if the object is a number (integer or float)."};
+
+#define _TYPEP_BODY(typeobj) \
+    COG_ENSURE_N_ITEMS(1); \
+    cog_object* a = cog_pop(); \
+    cog_push(cog_box_bool(a->type == typeobj)); \
+    return NULL;
+
+cog_object* fn_is_symbol() { _TYPEP_BODY(&ot_symbol) }
+cog_object* fn_is_integer() { _TYPEP_BODY(&ot_int || (a->type == &ot_float && a->as_float == floor(a->as_float))) }
+cog_object* fn_is_list() { _TYPEP_BODY(NULL) }
+cog_object* fn_is_string() { _TYPEP_BODY(&ot_buffer) }
+cog_object* fn_is_block() { _TYPEP_BODY(&ot_closure) }
+cog_object* fn_is_boolean() { _TYPEP_BODY(&ot_bool) }
+cog_modfunc fne_is_symbol = {"symbol?", COG_FUNC, fn_is_symbol, "Return true if the object is a symbol."};
+cog_modfunc fne_is_integer = {"integer?", COG_FUNC, fn_is_integer, "Return true if the object is an integer."};
+cog_modfunc fne_is_list = {"list?", COG_FUNC, fn_is_list, "Return true if the object is a list."};
+cog_modfunc fne_is_string = {"string?", COG_FUNC, fn_is_string, "Return true if the object is a string."};
+cog_modfunc fne_is_block = {"block?", COG_FUNC, fn_is_block, "Return true if the object is a block."};
+cog_modfunc fne_is_boolean = {"boolean?", COG_FUNC, fn_is_boolean, "Return true if the object is a boolean."};
+
+cog_object* fn_is_zero() {
+    COG_ENSURE_N_ITEMS(1);
+    cog_object* a = cog_pop();
+    if (a->type == &ot_int) {
+        cog_push(cog_box_bool(a->as_int == 0));
+    } else if (a->type == &ot_float) {
+        cog_push(cog_box_bool(a->as_float == 0));
+    } else {
+        cog_push(cog_box_bool(false));
+    }
+    return NULL;
+}
+cog_modfunc fne_is_zero = {"zero?", COG_FUNC, fn_is_zero, "Return true if the object is a number and is zero."};
+
+cog_object* fn_is_io() {
+    COG_ENSURE_N_ITEMS(1);
+    cog_object* a = cog_pop();
+    cog_push(cog_emptystring());
+    cog_object* res = cog_run_well_known(a, COG_SM_PUTS);
+    cog_push(cog_box_bool(!cog_same_identifiers(res, cog_not_implemented())));
+    return NULL;
+}
+cog_modfunc fne_is_io = {"io?", COG_FUNC, fn_is_io, "Return true if the object is an IO object; i.e. it responds to Write."};
+
+#define _TYPE_ASSERTION_BODY(typeobj, texpr) \
+    COG_ENSURE_N_ITEMS(1); \
+    cog_object* a = cog_pop(); \
+    if (!a || a->type != texpr) COG_ENSURE_TYPE(a, typeobj); \
+    cog_push(a); \
+    return NULL;
+cog_object* fn_assert_number() { _TYPE_ASSERTION_BODY(&ot_float, &ot_int || a->type == &ot_float) }
+cog_object* fn_assert_symbol() { _TYPE_ASSERTION_BODY(&ot_symbol, &ot_symbol) }
+cog_object* fn_assert_any() { return NULL; }
+cog_object* fn_assert_string() { _TYPE_ASSERTION_BODY(&ot_buffer, &ot_buffer) }
+cog_object* fn_assert_block() { _TYPE_ASSERTION_BODY(&ot_closure, &ot_closure) }
+cog_object* fn_assert_boolean() { _TYPE_ASSERTION_BODY(&ot_bool, &ot_bool) }
+cog_modfunc fne_assert_number = {"number!", COG_FUNC, fn_assert_number, "Assert that the object is a number."};
+cog_modfunc fne_assert_symbol = {"symbol!", COG_FUNC, fn_assert_symbol, "Assert that the object is a symbol."};
+cog_modfunc fne_assert_any = {"any!", COG_FUNC, fn_assert_any, "Assert that the object is of any type. This doesn't actually do anything."};
+cog_modfunc fne_assert_string = {"string!", COG_FUNC, fn_assert_string, "Assert that the object is a string."};
+cog_modfunc fne_assert_block = {"block!", COG_FUNC, fn_assert_block, "Assert that the object is a block."};
+cog_modfunc fne_assert_boolean = {"boolean!", COG_FUNC, fn_assert_boolean, "Assert that the object is a boolean."};
+
+cog_object* fn_assert_list() {
+    COG_ENSURE_N_ITEMS(1);
+    cog_object* a = cog_pop();
+    if (a && a->type != NULL) {
+        cog_push(cog_sprintf("expected list, got %s", GET_TYPENAME_STRING(a)));
+        return cog_error();
+    }
+    cog_push(a);
+    return NULL;
+}
+cog_modfunc fne_assert_list = {"list!", COG_FUNC, fn_assert_list, "Assert that the object is a list."};
+
+cog_object* fn_assert_io() {
+    COG_ENSURE_N_ITEMS(1);
+    cog_object* a = cog_pop();
+    cog_push(cog_emptystring());
+    cog_object* res = cog_run_well_known(a, COG_SM_PUTS);
+    if (cog_same_identifiers(res, cog_not_implemented())) {
+        cog_push(cog_sprintf("expected IO object, got %s", GET_TYPENAME_STRING(a)));
+        return cog_error();
+    }
+    cog_push(a);
+    return NULL;
+}
+cog_modfunc fne_assert_io = {"io!", COG_FUNC, fn_assert_io, "Assert that the object is an IO object."};
 
 // MARK: BUILTINS TABLES
 
@@ -2252,6 +2348,25 @@ static cog_modfunc* builtin_modfunc_table[] = {
     // control flow
     &fne_if,
     &fne_do,
+    // type predicates
+    &fne_is_number,
+    &fne_is_symbol,
+    &fne_is_integer,
+    &fne_is_list,
+    &fne_is_string,
+    &fne_is_block,
+    &fne_is_boolean,
+    &fne_is_zero,
+    &fne_is_io,
+    // type assertions
+    &fne_assert_number,
+    &fne_assert_symbol,
+    &fne_assert_any,
+    &fne_assert_string,
+    &fne_assert_block,
+    &fne_assert_boolean,
+    &fne_assert_list,
+    &fne_assert_io,
     // IO
     &fne_print,
     &fne_put,
