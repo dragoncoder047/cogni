@@ -20,6 +20,8 @@ prelude.inc: cognac/src/prelude.cog
 prelude2.inc: prelude2.cog
 	xxd -i prelude2.cog > prelude2.inc
 
+main.o: prelude.inc prelude2.inc
+
 cogni: $(MODULES) prelude.inc prelude2.inc
 	$(CC) $(MODULES) $(CFLAGS) -o cogni
 

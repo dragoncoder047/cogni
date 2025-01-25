@@ -6,7 +6,7 @@ Def List as (
     run F to fill the stack;
     Let L be the new Stack;
     Clear the stack;
-    For each in S do (); ~~ put the old stack back
+    For each in Reverse S do (); ~~ put the old stack back
     L ~~ put the list on the stack
 );
 

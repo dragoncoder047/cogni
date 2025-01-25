@@ -14,9 +14,15 @@ def test(file: str, process: subprocess.Popen, pad_length: int):
     global errors
     global crashes
     print("Testing", file.ljust(pad_length), end=" :: ")
-    exit_code = process.wait()
+    try:
+        exit_code = process.wait()
+    except KeyboardInterrupt:
+        exit_code = "^C"
     out: bytes = process.stdout.read()
-    if exit_code != 0:
+    if exit_code == "^C":
+        print("INTERRUPT", end=" ")
+        out += b"^C"
+    elif exit_code != 0:
         crashes += 1
         print("CRASH", end=" ")
     elif b"ERROR" in out:
@@ -30,9 +36,7 @@ def test(file: str, process: subprocess.Popen, pad_length: int):
         print("PASS", end=" ")
     with open(file.replace(".cog", ".log"), "wb") as f:
         f.write(out)
-    if b"assertion failed" in out.lower() or b"segfault" in out.lower():
-        print(out.decode(), end="")
-    elif (m := re.search(r"undefined: (.+?)\n", out.decode(), re.I)):
+    if (m := re.search(r"undefined: (.+?)\n", out.decode(), re.I)):
         print("requires", m.group(1), end="")
     print()
 

@@ -963,7 +963,9 @@ cog_object* cog_make_character(char c) {
 
 cog_object* cog_strappend(cog_object* str1, cog_object* str2) {
     cog_object* str1clone = cog_strdup(str1);
-    return cog_strcat(&str1clone, str2);
+    // cog_string_delete_char(&str1clone, cog_strlen(str1));
+    cog_object* str12 = cog_strcat(&str1clone, str2);
+    return str12;
 }
 
 int cog_strcmp(cog_object* str1, cog_object* str2) {
@@ -1439,7 +1441,7 @@ cog_object* fn_parser_handle_token() {
     error:
     cog_push(cog_box_bool(true));
     cog_run_well_known_strict(buffer, COG_M_SHOW);
-    COG_RETURN_ERROR(cog_strappend(cog_string("PARSE ERROR: could not handle token "), cog_pop()));
+    COG_RETURN_ERROR(cog_sprintf("PARSE ERROR: could not handle token %O", cog_pop()));
 
     retry:
     cog_run_next(cog_make_identifier_c("[[Parser::HandleToken]]"), NULL, cookie);
@@ -2409,7 +2411,12 @@ cog_object* fn_append() {
     cog_object* a = cog_pop();
     cog_object* b = cog_pop();
     if (a && b && a->type == &ot_string && b->type == &ot_string) {
-        cog_push(cog_strappend(b, a));
+        cog_object* ba = cog_strappend(b, a);
+        // char cha = cog_nthchar(a, 0);
+        // char chb = cog_nthchar(ba, cog_strlen(b));
+        // cog_printf("DEBUG: a=%O, b=%O, cha=%c, chb=%c, ba=%O\n", a, b, cha, chb, ba);
+        // assert(cha == chb);
+        cog_push(ba);
         return NULL;
     }
     COG_ENSURE_LIST(a);
