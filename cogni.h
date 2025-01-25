@@ -403,7 +403,7 @@ cog_object* cog_list_splice(cog_object**, cog_object*);
  * This also works for duplicating a string.
  */
 cog_object* cog_clone_list_shallow(cog_object*);
-__attribute__((always_inline)) cog_object* cog_strdup(cog_object* str) { return cog_clone_list_shallow(str); }
+#define cog_strdup cog_clone_list_shallow
 
 void cog_reverse_list_inplace(cog_object**);
 
