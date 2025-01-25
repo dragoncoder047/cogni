@@ -64,7 +64,7 @@ static cog_object* m_file_stringify() {
     cog_push(cog_sprintf("<File %O at pos %li>", file->next, ftell((FILE*)file->as_ptr)));
     return NULL;
 }
-cog_object_method ome_file_stringify = {&ot_file, COG_M_STRINGIFY_SELF, m_file_stringify};
+cog_object_method ome_file_stringify = {&ot_file, COG_M_SHOW, m_file_stringify};
 
 cog_object_method* m_file_table[] = {
     &ome_file_write,

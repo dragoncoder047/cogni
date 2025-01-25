@@ -1,4 +1,4 @@
-.PHONY: test run cleanexec cleanlogs stresstest cleanexec prelude.inc clean
+.PHONY: test run cleanexec cleanlogs stresstest cleanexec prelude.inc prelude2.inc clean
 .NOPARALLEL: # cSpell: ignore NOPARALLEL
 test: stresstest cleanexec
 
@@ -17,7 +17,10 @@ MODULES := $(C_FILES:.c=.o)
 prelude.inc: cognac/src/prelude.cog
 	xxd -i cognac/src/prelude.cog > prelude.inc
 
-cogni: $(MODULES) prelude.inc
+prelude2.inc: prelude2.cog
+	xxd -i prelude2.cog > prelude2.inc
+
+cogni: $(MODULES) prelude.inc prelude2.inc
 	$(CC) $(MODULES) $(CFLAGS) -o cogni
 
 cleanexec:

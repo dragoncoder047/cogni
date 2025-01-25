@@ -19,7 +19,7 @@ def test(file: str, process: subprocess.Popen, pad_length: int):
     if exit_code != 0:
         crashes += 1
         print("CRASH", end=" ")
-    if b"ERROR" in out:
+    elif b"ERROR" in out:
         errors += 1
         print("ERROR", end=" ")
     elif b"FAIL" in out:

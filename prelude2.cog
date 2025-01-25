@@ -1,0 +1,24 @@
+~~ implemented in Cognate here because I couldn't get it to work in C
+Def List as (
+    Def F;
+    Let S be the current Stack;
+    Clear the stack;
+    run F to fill the stack;
+    Let L be the new Stack;
+    Clear the stack;
+    For each in S do (); ~~ put the old stack back
+    L ~~ put the list on the stack
+);
+
+~~ helper for from inside ==
+Def SameLists as (
+    Let L1 be List!;
+    Let L2 be List!;
+    Do If Empty? L1 then (Empty? L2) else (
+        Let D1 be the First of L1;
+        Let D2 be the First of L2;
+        Do If == D1 D2 then (
+            SameLists Rest of L1 and Rest of L2
+        ) else False;
+    );
+);

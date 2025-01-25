@@ -5,6 +5,7 @@
 #include "cogni.h"
 #include "files.h"
 #include "prelude.inc"
+#include "prelude2.inc"
 
 cog_object* fn_test() {
     cog_printf("Hello, World! My cookie is %O\n", cog_pop());
@@ -76,9 +77,10 @@ int main(int argc, char* argv[]) {
     cog_set_stderr(cog_open_file("/dev/stderr", "w"));
 
 
-    // parse the prelude
     cog_object* prelude = cog_string_from_bytes((char*)cognac_src_prelude_cog, cognac_src_prelude_cog_len);
     if (!run(prelude, "prelude")) goto end;
+    prelude = cog_string_from_bytes((char*)prelude2_cog, prelude2_cog_len);
+    if (!run(prelude, "prelude part 2")) goto end;
 
     // Run user script
     cog_object* userscript = NULL;

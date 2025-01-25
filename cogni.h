@@ -15,16 +15,6 @@ extern "C" {
 #include <stddef.h>
 #include <inttypes.h>
 
-#if __SIZEOF_POINTER__ == 8
-typedef long long cog_integer;
-#elif __SIZEOF_POINTER__ == 4
-typedef long cog_integer;
-#else
-#error "not enough bits"
-#endif
-
-typedef double cog_float;
-
 #define COG_MAX_CHARS_PER_BUFFER_CHUNK (__SIZEOF_POINTER__ - 2)
 
 // MARK: TYPES N' STUFF
@@ -44,8 +34,8 @@ struct cog_object {
     bool marked;
     union {
         cog_object* data;
-        cog_integer as_int;
-        cog_float as_float;
+        int64_t as_int;
+        double as_float;
         void* as_ptr;
         cog_modfunc* as_fun;
         cog_packed_identifier as_packed_sym;
@@ -81,8 +71,10 @@ struct cog_modfunc {
 
 enum cog_well_known_method {
     // for all objects
-    COG_M_RUN_SELF, // (cookie self -- ...blah)
-    COG_M_STRINGIFY_SELF, // (readably self -- )
+    COG_M_EXEC, // (cookie self -- ...blah)
+    COG_M_HASH, // (self -- hash)
+    COG_M_SHOW, // (readably self -- string)
+    COG_M_SHOW_REC, // (ctx readably self -- string)
     COG_M_SERIALIZE, // (self -- buffer)
     COG_M_UNSERIALIZE, // (buffer trash -- obj)
     // COG_M_COMPARE, // (other self -- result)
@@ -173,24 +165,24 @@ cog_object* cog_walk_both(cog_object*, cog_walk_fun, cog_object*);
 /**
  * Boxes an integer into a cog_object.
  */
-cog_object* cog_box_int(cog_integer);
+cog_object* cog_box_int(int64_t);
 
 /**
  * Unboxes an integer from a `cog_object`, or calls `abort()` if it
  * is not an integer object.
  */
-cog_integer cog_unbox_int(cog_object*);
+int64_t cog_unbox_int(cog_object*);
 
 /**
  * Boxes a float into a `cog_object`.
  */
-cog_object* cog_box_float(cog_float);
+cog_object* cog_box_float(double);
 
 /**
  * Unboxes a float from a `cog_object`, or calls `abort()` if it
  * is not a float object.
  */
-cog_float cog_unbox_float(cog_object*);
+double cog_unbox_float(cog_object*);
 
 /**
  * Boxes a boolean into a `cog_object`.
