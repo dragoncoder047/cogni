@@ -259,7 +259,7 @@ int cog_strcasecmp_c(cog_object*, const char* const str2);
  * Concatenates two strings. The input strings are not modified, but the returned string
  * will share the same chunks as `str2`.
  */
-cog_object* cog_strcat(cog_object*, cog_object*);
+cog_object* cog_strappend(cog_object*, cog_object*);
 
 /**
  * Creates a string from a C string.
@@ -392,11 +392,12 @@ char cog_unescape_char(char);
 char cog_maybe_escape_char(char, bool*);
 
 /**
- * Destructively splices two lists together.
- * @param l1 Pointer to the first list, which will be modified to point to the second list.
- * @return The spliced list. Usually the same as `*l1` but not always.
+ * Destructively splices two lists or strings together.
+ * @param l1 Pointer to the first list or string, which will be modified to point to the second list or string.
+ * @return The spliced list or string. Usually the same as `*l1` but not always.
  */
 cog_object* cog_list_splice(cog_object**, cog_object*);
+#define cog_strcat cog_list_splice
 
 /**
  * Duplicates a list shallowly. The items in the list are not copied.

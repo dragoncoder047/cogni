@@ -304,6 +304,7 @@ cog_object* cog_clone_list_shallow(cog_object* list) {
 cog_object* cog_list_splice(cog_object** l1, cog_object* l2) {
     cog_object* tail = *l1;
     if (tail) {
+        assert(!l2 || tail->type == l2->type);
         while (tail->next) tail = tail->next;
         tail->next = l2;
     }
@@ -957,9 +958,9 @@ cog_object* cog_make_character(char c) {
     return obj;
 }
 
-cog_object* cog_strcat(cog_object* str1, cog_object* str2) {
+cog_object* cog_strappend(cog_object* str1, cog_object* str2) {
     cog_object* str1clone = cog_strdup(str1);
-    return cog_list_splice(&str1clone, str2);
+    return cog_strcat(&str1clone, str2);
 }
 
 int cog_strcmp(cog_object* str1, cog_object* str2) {
@@ -1429,7 +1430,7 @@ cog_object* fn_parser_handle_token() {
     error:
     cog_push(cog_box_bool(true));
     cog_run_well_known_strict(buffer, COG_M_STRINGIFY_SELF);
-    COG_RETURN_ERROR(cog_strcat(cog_string("PARSE ERROR: could not handle token "), cog_pop()));
+    COG_RETURN_ERROR(cog_strappend(cog_string("PARSE ERROR: could not handle token "), cog_pop()));
 
     retry:
     cog_run_next(cog_make_identifier_c("[[Parser::HandleToken]]"), NULL, cookie);
@@ -2388,7 +2389,7 @@ cog_object* fn_append() {
     cog_object* a = cog_pop();
     cog_object* b = cog_pop();
     if (a && b && a->type == &ot_string && b->type == &ot_string) {
-        cog_push(cog_strcat(b, a));
+        cog_push(cog_strappend(b, a));
         return NULL;
     }
     COG_ENSURE_LIST(a);
