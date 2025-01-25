@@ -452,7 +452,6 @@ cog_object* cog_run_well_known_strict(cog_object* obj, enum cog_well_known_metho
 cog_object* cog_mainloop(cog_object* status) {
     size_t next_gc = COG_GLOBALS.alloc_chunks * 2;
     while (COG_GLOBALS.command_queue) {
-        // debug_dump_stuff();
         cog_object* cmd = cog_pop_from(&COG_GLOBALS.command_queue);
         if (cmd == NULL) {
             fprintf(stderr, "got NULL as object in command queue\n");
@@ -2121,6 +2120,12 @@ cog_object* fn_eq() {
                 cog_push(cog_box_bool(a == b));
             }
             return NULL;
+        } else if (a->type == &ot_int && b->type == &ot_float) {
+            cog_push(cog_box_bool(a->as_int == b->as_float));
+        } else if (a->type == &ot_float && b->type == &ot_int) {
+            cog_push(cog_box_bool(a->as_float == b->as_int));
+        } else {
+            cog_push(cog_box_bool(false));
         }
     } else if (a == b) {
         cog_push(cog_box_bool(true));
@@ -2423,6 +2428,7 @@ cog_object* fn_ordinal() {
     if (!b[0])
 		COG_RETURN_ERROR(cog_string("Gave empty string to Ordinal"));
 	wchar_t chr = 0;
+    mbtowc(NULL, NULL, 0); // reset the conversion state
 	mbtowc(&chr, b, MB_CUR_MAX);
     cog_push(cog_box_int(chr));
     return NULL;
