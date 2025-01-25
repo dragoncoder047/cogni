@@ -16,6 +16,7 @@
 #include <signal.h>
 #include <stdarg.h>
 #include <math.h>
+#include <wchar.h>
 
 #ifndef cog_malloc
 #define cog_malloc malloc
@@ -2053,10 +2054,10 @@ cog_modfunc fne_empty = {
     COG_ENSURE_N_ITEMS(2); \
     cog_object* a = cog_pop(); \
     cog_object* b = cog_pop(); \
-    if (a && b ) { \
+    if (a && b) { \
         if ((a->type == &ot_int || a->type == &ot_float) && (b->type == &ot_int || b->type == &ot_float)) { \
             if (a->type == &ot_int && b->type == &ot_int) { \
-                cog_push(cog_box_##both_ints_type(both_ints_cast b->as_int op both_ints_cast a->as_int)); \
+                cog_push(cog_box_##both_ints_type((both_ints_cast b->as_int) op (both_ints_cast a->as_int))); \
             } else { \
                 cog_float a_val = (a->type == &ot_int) ? (cog_float)a->as_int : a->as_float; \
                 cog_float b_val = (b->type == &ot_int) ? (cog_float)b->as_int : b->as_float; \
@@ -2413,6 +2414,40 @@ cog_object* fn_substring() {
 }
 cog_modfunc fne_substring = {"substring", COG_FUNC, fn_substring, "Return a substring of a string."};
 
+cog_object* fn_ordinal() {
+    COG_ENSURE_N_ITEMS(1);
+    cog_object* a = cog_pop();
+    COG_ENSURE_TYPE(a, &ot_string);
+    char b[MB_CUR_MAX];
+    cog_string_to_cstring(a, b, MB_CUR_MAX);
+    if (!b[0])
+		COG_RETURN_ERROR(cog_string("Gave empty string to Ordinal"));
+	wchar_t chr = 0;
+	mbtowc(&chr, b, MB_CUR_MAX);
+    cog_push(cog_box_int(chr));
+    return NULL;
+}
+cog_modfunc fne_ordinal = {"ordinal", COG_FUNC, fn_ordinal, "Return the ordinal of a Unicode character (a one-character string)."};
+
+cog_object* fn_character() {
+    COG_ENSURE_N_ITEMS(1);
+    cog_object* a = cog_pop();
+    if (!a || a->type != &ot_int) {
+        if (!a || a->type != &ot_float || floor(a->as_float) != a->as_float)
+            COG_ENSURE_TYPE(a, &ot_int);
+    }
+    wchar_t ord = (wchar_t)(a->type == &ot_int ? a->as_int : (cog_integer)a->as_float);
+    char b[MB_CUR_MAX+1];
+    memset(b, 0, MB_CUR_MAX+1);
+    mbtowc(NULL, NULL, 0); // reset the conversion state
+    size_t len = wctomb(b, ord);
+    if (len == (size_t)-1)
+        COG_RETURN_ERROR(cog_sprintf("Invalid ordinal %O", a));
+    cog_push(cog_string(b));
+    return NULL;
+}
+cog_modfunc fne_character = {"character", COG_FUNC, fn_character, "Return the character of a Unicode ordinal."};
+
 // MARK: BUILTINS TABLES
 
 static cog_modfunc* builtin_modfunc_table[] = {
@@ -2445,6 +2480,7 @@ static cog_modfunc* builtin_modfunc_table[] = {
     &fne_minus,
     &fne_times,
     &fne_divide,
+    &fne_modulo,
     &fne_less,
     &fne_greater,
     &fne_lesseq,
@@ -2490,6 +2526,8 @@ static cog_modfunc* builtin_modfunc_table[] = {
     // string functions
     &fne_append,
     &fne_substring,
+    &fne_ordinal,
+    &fne_character,
     NULL
 };
 

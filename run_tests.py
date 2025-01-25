@@ -1,5 +1,6 @@
 import glob
 import subprocess
+import re
 
 successes = 0
 failures = 0
@@ -29,9 +30,11 @@ def test(file: str, process: subprocess.Popen, pad_length: int):
         print("FAIL", end=" ")
     with open(file.replace(".cog", ".log"), "wb") as f:
         f.write(out)
-    print()
     if b"assertion failed" in out.lower() or b"segfault" in out.lower():
-        print(out.decode())
+        print(out.decode(), end="")
+    elif (m := re.search(r"undefined: (.+?)\n", out.decode(), re.I)):
+        print("requires", m.group(1), end="")
+    print()
 
 
 test_files = sorted(glob.glob("cognac/tests/*.cog"))
