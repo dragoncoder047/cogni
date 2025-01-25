@@ -316,6 +316,11 @@ void cog_insert_byte_to_buffer_at(cog_object**, char, size_t);
 void cog_delete_byte_from_buffer_at(cog_object**, size_t);
 
 /**
+ * Return a new (not shared) substring of the string str.
+ */
+cog_object* cog_substring(cog_object*, size_t, size_t);
+
+/**
  * Creates an empty IO string stream.
  */
 cog_object* cog_empty_io_string();
@@ -395,6 +400,7 @@ cog_object* cog_list_splice(cog_object**, cog_object*);
 
 /**
  * Duplicates a list shallowly. The items in the list are not copied.
+ * This also works for duplicating a string.
  */
 cog_object* cog_dup_list_shallow(cog_object*);
 
@@ -615,6 +621,16 @@ extern cog_obj_type cog_ot_owned_pointer;
         if ((obj) == NULL || (obj)->type != typeobj) { \
             COG_RETURN_ERROR(cog_sprintf("Expected %s, but got %s", \
                 (typeobj) ? (typeobj)->typename : "NULL", (obj) ? (obj)->type->typename : "NULL")); \
+        } \
+    } while (0)
+
+/**
+ * Ensures that an object is a list type, returning early with an error if not.
+ */
+#define COG_ENSURE_LIST(obj) \
+    do { \
+        if ((obj) && (obj)->type) { \
+            COG_RETURN_ERROR(cog_sprintf("Expected list, but got %s", (obj) ? (obj)->type->typename : "NULL")); \
         } \
     } while (0)
 

@@ -287,14 +287,15 @@ cog_object* cog_pop_from(cog_object** stack) {
     return top->data;
 }
 
-cog_object* cog_dup_list_shallow(cog_object* str1) {
-    cog_object* out = cog_emptystring();
+cog_object* cog_dup_list_shallow(cog_object* list) {
+    cog_obj_type* t = list ? list->type : NULL;
+    cog_object* out = cog_make_obj(t);
     cog_object* tail = out;
-    while (str1) {
-        tail->data = str1->data;
-        tail->next = cog_emptystring();
+    while (list) {
+        tail->data = list->data;
+        tail->next = cog_make_obj(t);
         tail = tail->next;
-        str1 = str1->next;
+        list = list->next;
     }
     tail->next = NULL;
     return out;
@@ -872,6 +873,29 @@ void cog_delete_byte_from_buffer_at(cog_object** buffer, size_t index) {
     if ((*current)->stored_chars == 0) {
         *current = (*current)->next;
     }
+}
+
+cog_object* cog_substring(cog_object* str, size_t start, size_t end) {
+    while (str && start >= str->stored_chars) {
+        start -= str->stored_chars;
+        end -= str->stored_chars;
+        str = str->next;
+    }
+    if (!str) return NULL;
+    cog_object* out = cog_dup_list_shallow(str);
+    while (start > 0) {
+        cog_delete_byte_from_buffer_at(&out, 0);
+        start--;
+        end--;
+    }
+    cog_object* end_chunk = out;
+    while (end >= end_chunk->stored_chars) {
+        end -= end_chunk->stored_chars;
+        end_chunk = end_chunk->next;
+    }
+    end_chunk->stored_chars = end;
+    end_chunk->next = NULL;
+    return out;
 }
 
 cog_object* cog_string(const char* const cstr) {
@@ -2218,18 +2242,18 @@ cog_object* fn_is_number() {
 }
 cog_modfunc fne_is_number = {"number?", COG_FUNC, fn_is_number, "Return true if the object is a number (integer or float)."};
 
-#define _TYPEP_BODY(typeobj) \
+#define _TYPEP_BODY(f, typeobj) \
     COG_ENSURE_N_ITEMS(1); \
     cog_object* a = cog_pop(); \
-    cog_push(cog_box_bool(a->type == typeobj)); \
+    cog_push(cog_box_bool(f a->type == typeobj)); \
     return NULL;
 
-cog_object* fn_is_symbol() { _TYPEP_BODY(&ot_symbol) }
-cog_object* fn_is_integer() { _TYPEP_BODY(&ot_int || (a->type == &ot_float && a->as_float == floor(a->as_float))) }
-cog_object* fn_is_list() { _TYPEP_BODY(NULL) }
-cog_object* fn_is_string() { _TYPEP_BODY(&ot_buffer) }
-cog_object* fn_is_block() { _TYPEP_BODY(&ot_closure) }
-cog_object* fn_is_boolean() { _TYPEP_BODY(&ot_bool) }
+cog_object* fn_is_symbol() { _TYPEP_BODY(,&ot_symbol) }
+cog_object* fn_is_integer() { _TYPEP_BODY(,&ot_int || (a->type == &ot_float && a->as_float == floor(a->as_float))) }
+cog_object* fn_is_list() { _TYPEP_BODY(!a ||,NULL) }
+cog_object* fn_is_string() { _TYPEP_BODY(,&ot_buffer) }
+cog_object* fn_is_block() { _TYPEP_BODY(,&ot_closure) }
+cog_object* fn_is_boolean() { _TYPEP_BODY(,&ot_bool) }
 cog_modfunc fne_is_symbol = {"symbol?", COG_FUNC, fn_is_symbol, "Return true if the object is a symbol."};
 cog_modfunc fne_is_integer = {"integer?", COG_FUNC, fn_is_integer, "Return true if the object is an integer."};
 cog_modfunc fne_is_list = {"list?", COG_FUNC, fn_is_list, "Return true if the object is a list."};
@@ -2283,10 +2307,7 @@ cog_modfunc fne_assert_boolean = {"boolean!", COG_FUNC, fn_assert_boolean, "Asse
 cog_object* fn_assert_list() {
     COG_ENSURE_N_ITEMS(1);
     cog_object* a = cog_pop();
-    if (a && a->type != NULL) {
-        cog_push(cog_sprintf("expected list, got %s", GET_TYPENAME_STRING(a)));
-        return cog_error();
-    }
+    COG_ENSURE_LIST(a);
     cog_push(a);
     return NULL;
 }
@@ -2305,6 +2326,91 @@ cog_object* fn_assert_io() {
     return NULL;
 }
 cog_modfunc fne_assert_io = {"io!", COG_FUNC, fn_assert_io, "Assert that the object is an IO object."};
+
+cog_object* fn_first() {
+    COG_ENSURE_N_ITEMS(1);
+    cog_object* a = cog_pop();
+    if (a && a->type == &ot_buffer) {
+        if (cog_strlen(a) == 0) COG_RETURN_ERROR(cog_string("tried to get First of an empty string"));
+        cog_push(cog_make_character(cog_nthchar(a, 0)));
+        return NULL;
+    }
+    COG_ENSURE_LIST(a);
+    if (!a) COG_RETURN_ERROR(cog_string("tried to get First of an empty list"));
+    cog_push(a->data);
+    return NULL;
+}
+cog_modfunc fne_first = {"first", COG_FUNC, fn_first, "Return the first element of a list."};
+
+cog_object* fn_rest() {
+    COG_ENSURE_N_ITEMS(1);
+    cog_object* a = cog_pop();
+    if (a && a->type == &ot_buffer) {
+        if (cog_strlen(a) == 0) COG_RETURN_ERROR(cog_string("tried to get Rest of an empty string"));
+        cog_object* dup = cog_dup_list_shallow(a);
+        cog_delete_byte_from_buffer_at(&dup, 0);
+        cog_push(dup);
+        return NULL;
+    }
+    COG_ENSURE_LIST(a);
+    if (!a) COG_RETURN_ERROR(cog_string("tried to get Rest of an empty list"));
+    cog_push(a->next);
+    return NULL;
+}
+cog_modfunc fne_rest = {"rest", COG_FUNC, fn_rest, "Return the rest of a list."};
+
+cog_object* fn_push() {
+    COG_ENSURE_N_ITEMS(2);
+    cog_object* a = cog_pop();
+    cog_object* b = cog_pop();
+    COG_ENSURE_LIST(b);
+    cog_push_to(&b, a);
+    cog_push(b);
+    return NULL;
+}
+cog_modfunc fne_push = {"push", COG_FUNC, fn_push, "Push an item onto a list."};
+
+cog_object* fn_is_empty() {
+    COG_ENSURE_N_ITEMS(1);
+    cog_object* a = cog_pop();
+    if (a && a->type == &ot_buffer) {
+        cog_push(cog_box_bool(cog_strlen(a) == 0));
+    } else {
+        COG_ENSURE_LIST(a);
+        cog_push(cog_box_bool(!a));
+    }
+    return NULL;
+}
+cog_modfunc fne_is_empty = {"empty?", COG_FUNC, fn_is_empty, "Return true if the list is empty."};
+
+cog_object* fn_append() {
+    COG_ENSURE_N_ITEMS(2);
+    cog_object* a = cog_pop();
+    cog_object* b = cog_pop();
+    if (a && b && a->type == &ot_buffer && b->type == &ot_buffer) {
+        cog_push(cog_strcat(b, a));
+        return NULL;
+    }
+    COG_ENSURE_LIST(a);
+    COG_ENSURE_LIST(b);
+    cog_list_splice(&b, a);
+    cog_push(b);
+    return NULL;
+}
+cog_modfunc fne_append = {"append", COG_FUNC, fn_append, "Append two lists or strings."};
+
+cog_object* fn_substring() {
+    COG_ENSURE_N_ITEMS(3);
+    cog_object* end = cog_pop();
+    cog_object* start = cog_pop();
+    cog_object* a = cog_pop();
+    COG_ENSURE_TYPE(a, &ot_buffer);
+    COG_ENSURE_TYPE(start, &ot_int);
+    COG_ENSURE_TYPE(end, &ot_int);
+    cog_push(cog_substring(a, start->as_int, end->as_int));
+    return NULL;
+}
+cog_modfunc fne_substring = {"substring", COG_FUNC, fn_substring, "Return a substring of a string."};
 
 // MARK: BUILTINS TABLES
 
@@ -2375,6 +2481,14 @@ static cog_modfunc* builtin_modfunc_table[] = {
     // IO
     &fne_print,
     &fne_put,
+    // list functions
+    &fne_first,
+    &fne_rest,
+    &fne_push,
+    &fne_is_empty,
+    // string functions
+    &fne_append,
+    &fne_substring,
     NULL
 };
 
