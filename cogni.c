@@ -890,12 +890,14 @@ cog_object* cog_substring(cog_object* str, size_t start, size_t end) {
         end--;
     }
     cog_object* end_chunk = out;
-    while (end >= end_chunk->stored_chars) {
+    while (end_chunk && end >= end_chunk->stored_chars) {
         end -= end_chunk->stored_chars;
         end_chunk = end_chunk->next;
     }
-    end_chunk->stored_chars = end;
-    end_chunk->next = NULL;
+    if (end_chunk) {
+        end_chunk->stored_chars = end;
+        end_chunk->next = NULL;
+    }
     return out;
 }
 
@@ -964,13 +966,17 @@ cog_object* cog_strappend(cog_object* str1, cog_object* str2) {
 }
 
 int cog_strcmp(cog_object* str1, cog_object* str2) {
+    return cog_strncmp(str1, str2, SIZE_MAX);
+}
+
+int cog_strncmp(cog_object* str1, cog_object* str2, size_t n) {
     assert(str1->type == &ot_string);
     assert(str2->type == &ot_string);
     int i1 = 0, i2 = 0;
-    while (str1 && str2) {
+    while (str1 && str2 && n > 0) {
         char d = str1->as_chars[i1] - str2->as_chars[i2];
         if (d != 0) return d;
-        i1++, i2++;
+        i1++, i2++, n--;
         if (i1 >= str1->stored_chars) {
             i1 = 0;
             str1 = str1->next;
@@ -980,6 +986,7 @@ int cog_strcmp(cog_object* str1, cog_object* str2) {
             str2 = str2->next;
         }
     }
+    if (n == 0) return 0;
     if (!str1 && !str2) return 0;
     if (str1) return 1;
     return -1;
@@ -2423,7 +2430,7 @@ cog_object* fn_ordinal() {
     COG_ENSURE_N_ITEMS(1);
     cog_object* a = cog_pop();
     COG_ENSURE_TYPE(a, &ot_string);
-    char b[MB_CUR_MAX];
+    char b[MB_CUR_MAX + 1];
     cog_string_to_cstring(a, b, MB_CUR_MAX);
     if (!b[0])
 		COG_RETURN_ERROR(cog_string("Gave empty string to Ordinal"));
@@ -2443,9 +2450,9 @@ cog_object* fn_character() {
             COG_ENSURE_TYPE(a, &ot_int);
     }
     wchar_t ord = (wchar_t)(a->type == &ot_int ? a->as_int : (cog_integer)a->as_float);
-    char b[MB_CUR_MAX+1];
-    memset(b, 0, MB_CUR_MAX+1);
     mbtowc(NULL, NULL, 0); // reset the conversion state
+    char b[MB_CUR_MAX+1];
+    memset(b, 0, MB_CUR_MAX + 1);
     size_t len = wctomb(b, ord);
     if (len == (size_t)-1)
         COG_RETURN_ERROR(cog_sprintf("Invalid ordinal %O", a));
@@ -2453,6 +2460,94 @@ cog_object* fn_character() {
     return NULL;
 }
 cog_modfunc fne_character = {"character", COG_FUNC, fn_character, "Return the character of a Unicode ordinal."};
+
+cog_object* fn_split() {
+    COG_ENSURE_N_ITEMS(2);
+    cog_object* sep = cog_pop();
+    cog_object* a = cog_pop();
+    COG_ENSURE_TYPE(a, &ot_string);
+    COG_ENSURE_TYPE(sep, &ot_string);
+    cog_object* list = NULL;
+    size_t startpos = 0;
+    size_t seplen = cog_strlen(sep);
+    size_t len = cog_strlen(a);
+    for (size_t i = 0; i < len; i++) {
+        if (!cog_strncmp(cog_substring(a, i, len), sep, seplen)) {
+            cog_push_to(&list, cog_substring(a, startpos, i));
+            startpos = i + seplen;
+            i += seplen - 1;
+        }
+    }
+    if (startpos < len)
+        cog_push_to(&list, cog_substring(a, startpos, len));
+    cog_push(list);
+    return NULL;
+}
+cog_modfunc fne_split = {"split", COG_FUNC, fn_split, "Split a string into a list of substrings."};
+
+#define _ONEFUNNUMBODY(ffn, ifn) \
+    COG_ENSURE_N_ITEMS(1); \
+    cog_object* a = cog_pop(); \
+    if (a && a->type == &ot_int) { \
+        cog_push(cog_box_int(ifn(a->as_int))); \
+        return NULL; \
+    } \
+    COG_ENSURE_TYPE(a, &ot_float); \
+    cog_push(cog_box_float(ffn(a->as_float))); \
+    return NULL;
+
+cog_object* fn_floor() { _ONEFUNNUMBODY(floor,) }
+cog_object* fn_round() { _ONEFUNNUMBODY(round,) }
+cog_object* fn_ceil() { _ONEFUNNUMBODY(ceil,) }
+cog_object* fn_abs()  { _ONEFUNNUMBODY(fabs, llabs) }
+cog_modfunc fne_floor = {"floor", COG_FUNC, fn_floor, "Return the floor of a number."};
+cog_modfunc fne_round = {"round", COG_FUNC, fn_round, "Return the rounded number."};
+cog_modfunc fne_ceil = {"ceiling", COG_FUNC, fn_ceil, "Return the ceiling of a number."};
+cog_modfunc fne_abs = {"abs", COG_FUNC, fn_abs, "Return the absolute value of a number."};
+
+cog_object* fn_error() {
+    COG_ENSURE_N_ITEMS(1);
+    cog_object* a = cog_pop();
+    COG_ENSURE_TYPE(a, &ot_string);
+    cog_push(a);
+    return cog_error();
+}
+cog_modfunc fne_error = {"error", COG_FUNC, fn_error, "Raise an error with a message."};
+
+cog_object* fn_number() {
+    COG_ENSURE_N_ITEMS(1);
+    cog_object* a = cog_pop();
+    COG_ENSURE_TYPE(a, &ot_string);
+    char b[64];
+    cog_string_to_cstring(a, b, sizeof(b));
+    cog_integer i = 0;
+    cog_float f = 0;
+    if (sscanf(b, "%lld", &i) == 1) {
+        cog_push(cog_box_int(i));
+    } else if (sscanf(b, "%lf", &f) == 1) {
+        cog_push(cog_box_float(f));
+    } else {
+        COG_RETURN_ERROR(cog_sprintf("Can't convert %O to a number", a));
+    }
+    return NULL;
+}
+cog_modfunc fne_number = {"number", COG_FUNC, fn_number, "Convert a string to a number."};
+
+cog_object* fn_wait() {
+    COG_ENSURE_N_ITEMS(1);
+    cog_object* a = cog_pop();
+    cog_float duration;
+    COG_GET_NUMBER(a, duration);
+    usleep(duration * 1000000);
+    return NULL;
+}
+cog_modfunc fne_wait = {"wait", COG_FUNC, fn_wait, "Sleep for a number of seconds."};
+
+cog_object* fn_stop() {
+    cog_quit();
+    exit(EXIT_SUCCESS);
+}
+cog_modfunc fne_stop = {"stop", COG_FUNC, fn_stop, "Stop the program."};
 
 // MARK: BUILTINS TABLES
 
@@ -2494,6 +2589,11 @@ static cog_modfunc* builtin_modfunc_table[] = {
     &fne_pow,
     &fne_eq,
     &fne_random,
+    &fne_sqrt,
+    &fne_floor,
+    &fne_round,
+    &fne_ceil,
+    &fne_abs,
     // boolean functions
     &fne_or,
     &fne_and,
@@ -2534,6 +2634,14 @@ static cog_modfunc* builtin_modfunc_table[] = {
     &fne_substring,
     &fne_ordinal,
     &fne_character,
+    &fne_split,
+    // conversion functions
+    &fne_number,
+    // error handling
+    &fne_error,
+    // misc
+    &fne_wait,
+    &fne_stop,
     NULL
 };
 

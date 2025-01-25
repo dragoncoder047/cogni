@@ -22,12 +22,12 @@ def test(file: str, process: subprocess.Popen, pad_length: int):
     if b"ERROR" in out:
         errors += 1
         print("ERROR", end=" ")
-    elif b"PASS" in out:
-        successes += 1
-        print("PASS", end=" ")
-    else:
+    elif b"FAIL" in out:
         failures += 1
         print("FAIL", end=" ")
+    else:
+        successes += 1
+        print("PASS", end=" ")
     with open(file.replace(".cog", ".log"), "wb") as f:
         f.write(out)
     if b"assertion failed" in out.lower() or b"segfault" in out.lower():

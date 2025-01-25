@@ -1,1 +1,13 @@
-Print == 1 / 7 42;
+Def List as (
+    Def F;
+    Let S be Stack;
+    Clear;
+    Let L be Stack F;
+    For each in S do (); ~~ put the stack back
+    L ~~ put the list on the stack
+);
+
+Print If == List ("Hello" "world!") Split on " " with "Hello world!"
+	"PASS: Splitting a string"
+else
+	"FAIL: Splitting a string";

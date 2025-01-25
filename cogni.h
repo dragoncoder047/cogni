@@ -236,6 +236,7 @@ cog_object* cog_sym(cog_object*);
  * a positive number if str2 comes before str1.
  */
 int cog_strcmp(cog_object*, cog_object*);
+int cog_strncmp(cog_object*, cog_object*, size_t);
 
 /**
  * Same as `cog_strcmp` except ignores case.
