@@ -295,25 +295,25 @@ char cog_nthchar(cog_object*, size_t);
  * @param data The byte to append. Null bytes are not treated specially
  * and can be put in the middle of a buffer.
  */
-void cog_append_byte_to_buffer(cog_object**, char);
+void cog_string_append_byte(cog_object**, char);
 
 /**
  * Prepends a byte to a buffer.
  * @param buffer A pointer to the buffer to append the byte to.
  */
-void cog_prepend_byte_to_buffer(cog_object**, char);
+void cog_string_prepend_byte(cog_object**, char);
 
 /**
  * Inserts a byte into a buffer at a specific index.
  * @param buffer A pointer to the buffer to append the byte to.
  */
-void cog_insert_byte_to_buffer_at(cog_object**, char, size_t);
+void cog_string_insert_char(cog_object**, char, size_t);
 
 /**
  * Deletes a byte from a buffer at a specific index.
  * @param buffer A pointer to the buffer to append the byte to.
  */
-void cog_delete_byte_from_buffer_at(cog_object**, size_t);
+void cog_string_delete_char(cog_object**, size_t);
 
 /**
  * Return a new (not shared) substring of the string str.
@@ -402,7 +402,8 @@ cog_object* cog_list_splice(cog_object**, cog_object*);
  * Duplicates a list shallowly. The items in the list are not copied.
  * This also works for duplicating a string.
  */
-cog_object* cog_dup_list_shallow(cog_object*);
+cog_object* cog_clone_list_shallow(cog_object*);
+__attribute__((always_inline)) cog_object* cog_strdup(cog_object* str) { return cog_clone_list_shallow(str); }
 
 void cog_reverse_list_inplace(cog_object**);
 

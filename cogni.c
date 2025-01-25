@@ -287,7 +287,7 @@ cog_object* cog_pop_from(cog_object** stack) {
     return top->data;
 }
 
-cog_object* cog_dup_list_shallow(cog_object* list) {
+cog_object* cog_clone_list_shallow(cog_object* list) {
     cog_obj_type* t = list ? list->type : NULL;
     cog_object* out = cog_make_obj(t);
     cog_object* tail = out;
@@ -619,7 +619,7 @@ cog_object* cog_explode_identifier(cog_object* i) {
             div *= base;
         int (*tr)(int) = toupper;
         for (;;) {
-            cog_append_byte_to_buffer(&tail, tr(PACKEDALPHABET[(s / div) % base]));
+            cog_string_append_byte(&tail, tr(PACKEDALPHABET[(s / div) % base]));
             if (div == 1) break;
             div /= base;
             tr = tolower;
@@ -627,7 +627,7 @@ cog_object* cog_explode_identifier(cog_object* i) {
     } else if (i->as_fun != NULL) {
         // builtin identifier
         for (const char* s = i->as_fun->name; *s; s++)
-            cog_append_byte_to_buffer(&tail, *s);
+            cog_string_append_byte(&tail, *s);
     } else {
         // long identifier
         buffer = i->next;
@@ -759,77 +759,77 @@ cog_object* m_symbol_stringify() {
 }
 cog_object_method ome_symbol_stringify = {&ot_symbol, COG_M_STRINGIFY_SELF, m_symbol_stringify};
 
-// MARK: BUFFERS
+// MARK: STRINGS
 
-cog_obj_type ot_buffer = {"Buffer", cog_walk_only_next, NULL};
+cog_obj_type ot_string = {"String", cog_walk_only_next, NULL};
 
 cog_object* cog_emptystring() {
-    return cog_make_obj(&ot_buffer);
+    return cog_make_obj(&ot_string);
 }
 
-void cog_append_byte_to_buffer(cog_object** buffer, char data) {
-    if ((*buffer)->stored_chars >= COG_MAX_CHARS_PER_BUFFER_CHUNK) {
-        while ((*buffer)->next != NULL) {
-            *buffer = (*buffer)->next;
+void cog_string_append_byte(cog_object** str, char data) {
+    if ((*str)->stored_chars >= COG_MAX_CHARS_PER_BUFFER_CHUNK) {
+        while ((*str)->next != NULL) {
+            *str = (*str)->next;
         }
         cog_object* next = cog_emptystring();
         next->as_chars[0] = data;
         next->stored_chars = 1;
-        (*buffer)->next = next;
-        *buffer = next;
+        (*str)->next = next;
+        *str = next;
     }
     else {
-        (*buffer)->as_chars[(*buffer)->stored_chars] = data;
-        (*buffer)->stored_chars++;
+        (*str)->as_chars[(*str)->stored_chars] = data;
+        (*str)->stored_chars++;
     }
 }
 
-void cog_prepend_byte_to_buffer(cog_object** buffer, char data) {
-    if ((*buffer) && (*buffer)->stored_chars < COG_MAX_CHARS_PER_BUFFER_CHUNK) {
-        memmove((*buffer)->as_chars + 1, (*buffer)->as_chars, (*buffer)->stored_chars);
-        (*buffer)->as_chars[0] = data;
-        (*buffer)->stored_chars++;
+void cog_string_prepend_byte(cog_object** str, char data) {
+    if ((*str) && (*str)->stored_chars < COG_MAX_CHARS_PER_BUFFER_CHUNK) {
+        memmove((*str)->as_chars + 1, (*str)->as_chars, (*str)->stored_chars);
+        (*str)->as_chars[0] = data;
+        (*str)->stored_chars++;
     }
     else {
         cog_object* new_head = cog_emptystring();
         new_head->as_chars[0] = data;
         new_head->stored_chars = 1;
-        new_head->next = *buffer;
-        *buffer = new_head;
+        new_head->next = *str;
+        *str = new_head;
     }
 }
 
-size_t cog_strlen(cog_object* buffer) {
+size_t cog_strlen(cog_object* str) {
     size_t len = 0;
-    while (buffer != NULL) {
-        len += buffer->stored_chars;
-        buffer = buffer->next;
+    while (str != NULL) {
+        len += str->stored_chars;
+        str = str->next;
     }
     return len;
 }
 
-char cog_nthchar(cog_object* buffer, size_t i) {
-    while (i >= buffer->stored_chars) {
-        if (buffer == NULL) return 0;
-        i -= buffer->stored_chars;
-        buffer = buffer->next;
+char cog_nthchar(cog_object* str, size_t i) {
+    while (i >= str->stored_chars) {
+        if (str == NULL) return 0;
+        i -= str->stored_chars;
+        str = str->next;
     }
-    if (!buffer || i >= buffer->stored_chars) return 0;
-    return buffer->as_chars[i];
+    if (!str || i >= str->stored_chars) return 0;
+    return str->as_chars[i];
 }
 
-void b_set_nthchar(cog_object* buffer, size_t i, char c) {
-    while (i >= buffer->stored_chars) {
-        assert(buffer != NULL);
-        i -= buffer->stored_chars;
-        buffer = buffer->next;
+void _str_set_nthchar(cog_object* str, size_t i, char c) {
+    while (i >= str->stored_chars) {
+        assert(str != NULL);
+        i -= str->stored_chars;
+        str = str->next;
     }
-    assert(buffer && i < buffer->stored_chars);
-    buffer->as_chars[i] = c;
+    assert(str && i < str->stored_chars);
+    str->as_chars[i] = c;
 }
 
-void cog_insert_byte_to_buffer_at(cog_object** buffer, char data, size_t index) {
-    cog_object* current = *buffer;
+void cog_string_insert_char(cog_object** str, char data, size_t index) {
+    cog_object* current = *str;
 
     while (current && index >= current->stored_chars) {
         index -= current->stored_chars;
@@ -838,7 +838,7 @@ void cog_insert_byte_to_buffer_at(cog_object** buffer, char data, size_t index) 
 
     if (!current) {
         // If index is out of bounds, append to the end
-        cog_append_byte_to_buffer(buffer, data);
+        cog_string_append_byte(str, data);
         return;
     }
 
@@ -847,15 +847,15 @@ void cog_insert_byte_to_buffer_at(cog_object** buffer, char data, size_t index) 
         current->as_chars[index] = data;
         current->stored_chars++;
     } else {
-        cog_prepend_byte_to_buffer(&current->next, current->as_chars[COG_MAX_CHARS_PER_BUFFER_CHUNK - 1]);
+        cog_string_prepend_byte(&current->next, current->as_chars[COG_MAX_CHARS_PER_BUFFER_CHUNK - 1]);
         memmove(current->as_chars + index + 2, current->as_chars + index + 1, current->stored_chars - index);
         current->stored_chars = COG_MAX_CHARS_PER_BUFFER_CHUNK;
         current->as_chars[index] = data;
     }
 }
 
-void cog_delete_byte_from_buffer_at(cog_object** buffer, size_t index) {
-    cog_object** current = buffer;
+void cog_string_delete_char(cog_object** str, size_t index) {
+    cog_object** current = str;
 
     while (*current && index >= (*current)->stored_chars) {
         index -= (*current)->stored_chars;
@@ -882,9 +882,9 @@ cog_object* cog_substring(cog_object* str, size_t start, size_t end) {
         str = str->next;
     }
     if (!str) return NULL;
-    cog_object* out = cog_dup_list_shallow(str);
+    cog_object* out = cog_strdup(str);
     while (start > 0) {
-        cog_delete_byte_from_buffer_at(&out, 0);
+        cog_string_delete_char(&out, 0);
         start--;
         end--;
     }
@@ -906,23 +906,23 @@ cog_object* cog_string_from_bytes(const char* const cstr, size_t n) {
     cog_object* str = cog_emptystring();
     cog_object* tail = str;
     for (size_t i = 0; i < n; i++)
-        cog_append_byte_to_buffer(&tail, cstr[i]);
+        cog_string_append_byte(&tail, cstr[i]);
     return str;
 }
 
-size_t cog_buffer_to_cstring(cog_object* buf, char* const str, size_t len) {
-    char* p = str;
-    while (buf && (p - str) < len) {
-        size_t nmore = min(buf->stored_chars, len - (p - str));
-        memcpy(p, buf->as_chars, nmore);
+size_t cog_string_to_cstring(cog_object* str, char* const cstr, size_t len) {
+    char* p = cstr;
+    while (str && (p - cstr) < len) {
+        size_t nmore = min(str->stored_chars, len - (p - cstr));
+        memcpy(p, str->as_chars, nmore);
         p += nmore;
-        buf = buf->next;
+        str = str->next;
     }
     *p = 0;
-    return p - str;
+    return p - cstr;
 }
 
-cog_object* cog_m_buffer_stringify() {
+cog_object* m_string_stringify() {
     cog_object* buffer = cog_pop();
     bool readably = cog_expect_type_fatal(cog_pop(), &ot_bool)->as_int;
     if (!readably) {
@@ -931,40 +931,40 @@ cog_object* cog_m_buffer_stringify() {
     else {
         cog_object* ebuf = cog_emptystring();
         cog_object* tail = ebuf;
-        cog_append_byte_to_buffer(&tail, '"');
+        cog_string_append_byte(&tail, '"');
         cog_object* chunk = buffer;
         while (chunk) {
             for (size_t i = 0; i < chunk->stored_chars; i++) {
                 bool special = false;
                 char ch = cog_maybe_escape_char(chunk->as_chars[i], &special);
-                if (special) cog_append_byte_to_buffer(&tail, '\\');
-                cog_append_byte_to_buffer(&tail, ch);
+                if (special) cog_string_append_byte(&tail, '\\');
+                cog_string_append_byte(&tail, ch);
             }
             chunk = chunk->next;
         }
-        cog_append_byte_to_buffer(&tail, '"');
+        cog_string_append_byte(&tail, '"');
         cog_push(ebuf);
     }
     return NULL;
 }
-cog_object_method ome_buffer_stringify = {&ot_buffer, COG_M_STRINGIFY_SELF, cog_m_buffer_stringify};
-cog_object_method ome_buffer_run = {&ot_buffer, COG_M_RUN_SELF, cog_obj_push_self};
+cog_object_method ome_string_stringify = {&ot_string, COG_M_STRINGIFY_SELF, m_string_stringify};
+cog_object_method ome_string_run = {&ot_string, COG_M_RUN_SELF, cog_obj_push_self};
 
 cog_object* cog_make_character(char c) {
-    // a character is just a one character buffer
+    // a character is just a one character string
     cog_object* obj = cog_emptystring();
-    cog_append_byte_to_buffer(&obj, c);
+    cog_string_append_byte(&obj, c);
     return obj;
 }
 
 cog_object* cog_strcat(cog_object* str1, cog_object* str2) {
-    cog_object* str1clone = cog_dup_list_shallow(str1);
+    cog_object* str1clone = cog_strdup(str1);
     return cog_list_splice(&str1clone, str2);
 }
 
 int cog_strcmp(cog_object* str1, cog_object* str2) {
-    assert(str1->type == &ot_buffer);
-    assert(str2->type == &ot_buffer);
+    assert(str1->type == &ot_string);
+    assert(str2->type == &ot_string);
     int i1 = 0, i2 = 0;
     while (str1 && str2) {
         char d = str1->as_chars[i1] - str2->as_chars[i2];
@@ -985,8 +985,8 @@ int cog_strcmp(cog_object* str1, cog_object* str2) {
 }
 
 int cog_strcasecmp(cog_object* str1, cog_object* str2) {
-    assert(str1->type == &ot_buffer);
-    assert(str2->type == &ot_buffer);
+    assert(str1->type == &ot_string);
+    assert(str2->type == &ot_string);
     int i1 = 0, i2 = 0;
     while (str1 && str2) {
         char d = tolower(str1->as_chars[i1]) - tolower(str2->as_chars[i2]);
@@ -1007,7 +1007,7 @@ int cog_strcasecmp(cog_object* str1, cog_object* str2) {
 }
 
 int cog_strcmp_c(cog_object* str1, const char* const str2) {
-    assert(str1->type == &ot_buffer);
+    assert(str1->type == &ot_string);
     int i1 = 0;
     const char* p = str2;
     while (str1 && *p) {
@@ -1025,7 +1025,7 @@ int cog_strcmp_c(cog_object* str1, const char* const str2) {
 }
 
 int cog_strcasecmp_c(cog_object* str1, const char* const str2) {
-    assert(str1->type == &ot_buffer);
+    assert(str1->type == &ot_string);
     int i1 = 0;
     const char* p = str2;
     while (str1 && *p) {
@@ -1097,7 +1097,7 @@ cog_object* cog_iostring_get_contents(cog_object* stream) {
 
 static cog_object* m_iostring_write() {
     cog_object* stream = cog_pop();
-    cog_object* buf = cog_expect_type_fatal(cog_pop(), &ot_buffer);
+    cog_object* buf = cog_expect_type_fatal(cog_pop(), &ot_string);
     if (cog_strlen(stream->next->data) > 0) {
         cog_push(cog_string("can't write until ungets stack is empty"));
         return cog_error();
@@ -1108,8 +1108,8 @@ static cog_object* m_iostring_write() {
     size_t len = cog_strlen(data);
     while (buf) {
         for (int i = 0; i < buf->stored_chars; i++) {
-            if (pos < len) b_set_nthchar(data, pos, buf->as_chars[i]);
-            else cog_append_byte_to_buffer(&tail, buf->as_chars[i]);
+            if (pos < len) _str_set_nthchar(data, pos, buf->as_chars[i]);
+            else cog_string_append_byte(&tail, buf->as_chars[i]);
             pos++;
         }
         buf = buf->next;
@@ -1123,7 +1123,7 @@ cog_object* m_iostring_getch() {
     cog_object* stream = cog_pop();
     if (cog_strlen(stream->next->data) > 0) {
         char c = cog_nthchar(stream->next->data, 0);
-        cog_delete_byte_from_buffer_at(&stream->next->data, 0);
+        cog_string_delete_char(&stream->next->data, 0);
         cog_push(cog_make_character(c));
         return NULL;
     }
@@ -1142,10 +1142,10 @@ cog_object_method ome_iostring_getch = {&ot_iostring, COG_SM_GETCH, m_iostring_g
 
 cog_object* m_iostring_ungets() {
     cog_object* stream = cog_pop();
-    cog_object* buf = cog_expect_type_fatal(cog_pop(), &ot_buffer);
+    cog_object* buf = cog_expect_type_fatal(cog_pop(), &ot_string);
     size_t len = cog_strlen(buf);
     for (size_t iplus1 = len; iplus1 > 0; iplus1--) {
-        cog_prepend_byte_to_buffer(&stream->next->data, cog_nthchar(buf, iplus1 - 1));
+        cog_string_prepend_byte(&stream->next->data, cog_nthchar(buf, iplus1 - 1));
     }
     return NULL;
 }
@@ -1396,9 +1396,9 @@ cog_object* fn_parser_handle_token() {
     cog_modfunc* curr_func = curr_mod->table[index->as_int];
     if (!curr_func) goto nextmod;
     if (curr_func->when != COG_PARSE_TOKEN_HANDLER) goto nextfun;
-    if (curr_func->name && buffer->type == &ot_buffer && cog_strcasecmp_c(buffer, curr_func->name))
+    if (curr_func->name && buffer->type == &ot_string && cog_strcasecmp_c(buffer, curr_func->name))
         goto nextfun;
-    if (curr_func->name && buffer->type != &ot_buffer) goto nextfun;
+    if (curr_func->name && buffer->type != &ot_string) goto nextfun;
 
     cog_object* cookie2 = cog_make_obj(NULL);
     cookie2->data = buffer;
@@ -1407,7 +1407,7 @@ cog_object* fn_parser_handle_token() {
     cog_object* res = curr_func->fun();
     if (cog_same_identifiers(res, cog_not_implemented())) {
         cog_pop();
-        if (buffer->type == &ot_buffer && cog_strlen(buffer) == 0) {
+        if (buffer->type == &ot_string && cog_strlen(buffer) == 0) {
             // clearing buffer == no token
             // so try again
             run_nextitem_next(stream, cog_emptystring());
@@ -1488,7 +1488,7 @@ cog_object* fn_parser_nextitem() {
 
     nextchar:
     if (curr_char->type == &ot_eof && cog_strlen(buffer) == 0) goto end_of_token;
-    if (ch != EOF) cog_append_byte_to_buffer(&tail, ch);
+    if (ch != EOF) cog_string_append_byte(&tail, ch);
 
     firstchar:
     COG_RUN_WKM_RETURN_IF_ERROR(stream, COG_SM_GETCH);
@@ -1500,7 +1500,7 @@ cog_object* fn_parser_nextitem() {
     return NULL;
 
     end_of_token:
-    if (cog_strlen(buffer) == 0 && curr_char->type == &ot_buffer) buffer = curr_char;
+    if (cog_strlen(buffer) == 0 && curr_char->type == &ot_string) buffer = curr_char;
     else if (ch != EOF) cog_ungetch(stream, ch);
     // handle current token
     if (cog_strlen(buffer) == 0) {
@@ -1524,7 +1524,7 @@ cog_modfunc fne_parser_nextitem = {
 cog_object* fn_parser_rule_special_chars() {
     cog_object* cookie = cog_pop();
     cog_object* ch = cookie->next->data;
-    if (ch->type == &ot_buffer) {
+    if (ch->type == &ot_string) {
         char ch = cog_nthchar(cookie->next->data, 0);
         if (isspace(ch)) return NULL;
         if (strchr("([{\"~;", ch)) return NULL;
@@ -1543,7 +1543,7 @@ cog_modfunc fne_parser_rule_special_chars = {
 cog_object* fn_parser_rule_break_chars() {
     cog_object* cookie = cog_pop();
     cog_object* ch = cookie->next->data;
-    if (cookie->next->data->type == &ot_buffer) {
+    if (cookie->next->data->type == &ot_string) {
         char ch = cog_nthchar(cookie->next->data, 0);
         if (strchr("\\)]}", ch)) return NULL;
     }
@@ -1560,7 +1560,7 @@ cog_modfunc fne_parser_rule_break_chars = {
 cog_object* fn_parser_ignore_whitespace() {
     cog_object* cookie = cog_pop();
     cog_object* s = cookie->data;
-    if (s->type == &ot_buffer) {
+    if (s->type == &ot_string) {
         size_t len = cog_strlen(s);
         for (size_t i = 0; i < len; i++) {
             if (!isspace(cog_nthchar(s, i))) {
@@ -1586,8 +1586,8 @@ cog_object* fn_parser_handle_int() {
     char buffer[32];
     cog_object* cookie = cog_pop();
     cog_object* s = cookie->data;
-    if (s->type == &ot_buffer) {
-        cog_buffer_to_cstring(s, buffer, sizeof(buffer));
+    if (s->type == &ot_string) {
+        cog_string_to_cstring(s, buffer, sizeof(buffer));
         cog_integer i;
         int len = 0;
         int filled = sscanf(buffer, "%" SCNd64 "%n", &i, &len);
@@ -1610,8 +1610,8 @@ cog_object* fn_parser_handle_float() {
     char buffer[32];
     cog_object* cookie = cog_pop();
     cog_object* s = cookie->data;
-    if (s->type == &ot_buffer) {
-        cog_buffer_to_cstring(s, buffer, sizeof(buffer));
+    if (s->type == &ot_string) {
+        cog_string_to_cstring(s, buffer, sizeof(buffer));
         cog_float i;
         int len = 0;
         int filled = sscanf(buffer, "%lg%n", &i, &len);
@@ -1661,12 +1661,12 @@ bool all_valid_for_ident(cog_object* string) {
 cog_object* fn_parser_handle_symbols() {
     cog_object* cookie = cog_pop();
     cog_object* s = cookie->data;
-    if (s->type == &ot_buffer) {
+    if (s->type == &ot_string) {
         char first = cog_nthchar(s, 0);
         if (first == '\\') {
-            cog_delete_byte_from_buffer_at(&s, 0);
+            cog_string_delete_char(&s, 0);
             if (!all_valid_for_ident(s)) {
-                cog_prepend_byte_to_buffer(&s, '\\');
+                cog_string_prepend_byte(&s, '\\');
             } else {
                 cog_push(cog_sym(cog_make_identifier(s)));
                 return NULL;
@@ -1687,7 +1687,7 @@ cog_modfunc fne_parser_handle_symbols = {
 cog_object* fn_parser_discard_informal_syntax() {
     cog_object* cookie = cog_pop();
     cog_object* s = cookie->data;
-    if (s->type == &ot_buffer) {
+    if (s->type == &ot_string) {
         char first = cog_nthchar(s, 0);
         if (tolower(first) == first && isalpha(first)) {
             // clear string to signal there is no token here
@@ -1709,7 +1709,7 @@ cog_modfunc fne_parser_discard_informal_syntax = {
 cog_object* fn_parser_handle_identifiers() {
     cog_object* cookie = cog_pop();
     cog_object* s = cookie->data;
-    if (s->type == &ot_buffer) {
+    if (s->type == &ot_string) {
         char first = cog_nthchar(s, 0);
         if (!isalpha(first) || (toupper(first) == first && all_valid_for_ident(s))) {
             // defined identifier
@@ -1799,13 +1799,13 @@ cog_object* fn_parser_handle_string() {
             } else {
                 char ch2 = cog_unescape_char(ch);
                 if (ch2 == ch) {
-                    cog_append_byte_to_buffer(&tail, '\\');
+                    cog_string_append_byte(&tail, '\\');
                 } else {
                     ch = ch2;
                 }
             }
         }
-        cog_append_byte_to_buffer(&tail, ch);
+        cog_string_append_byte(&tail, ch);
     }
     cog_push(buffer);
     return NULL;
@@ -1965,7 +1965,7 @@ void handle_item(cog_object* ijp) {
 cog_object* fn_parser_handle_semicolon() {
     cog_object* cookie = cog_pop();
     cog_object* s = cookie->data;
-    if (s->type == &ot_buffer) {
+    if (s->type == &ot_string) {
         s->stored_chars = 0;
         s->next = NULL;
     }
@@ -1987,9 +1987,9 @@ cog_object* fn_parser_parse_block_loop() {
     cog_object* ijp = cog_pop();
     if (!ijp || ijp->type != &ot_parser_sentinel) goto next;
     if (ijp->next->type == &ot_eof && stopwhen->type == &ot_eof) goto stop;
-    if (ijp->next->type == &ot_buffer && stopwhen->type == &ot_buffer && !cog_strcmp(ijp->next, stopwhen)) goto stop;
+    if (ijp->next->type == &ot_string && stopwhen->type == &ot_string && !cog_strcmp(ijp->next, stopwhen)) goto stop;
     // else it is an error
-    cog_push(ijp->next->type == &ot_buffer ? cog_sprintf("unexpected %O", ijp->next): cog_string("unexpected EOF"));
+    cog_push(ijp->next->type == &ot_string ? cog_sprintf("unexpected %O", ijp->next): cog_string("unexpected EOF"));
     return cog_error();
 
     next:
@@ -2015,7 +2015,7 @@ cog_object* fn_parse() {
         cog_push(NULL);
         return NULL;
     }
-    if (stream->type == &ot_buffer) {
+    if (stream->type == &ot_string) {
         stream = cog_iostring_wrap(stream);
     }
     cog_object* cookie2 = stream;
@@ -2113,7 +2113,7 @@ cog_object* fn_eq() {
                 cog_push(cog_box_bool(cog_same_identifiers(a, b)));
             } else if (a->type == &ot_symbol) {
                 cog_push(cog_box_bool(cog_same_identifiers(a->next, b->next)));
-            } else if (a->type == &ot_buffer) {
+            } else if (a->type == &ot_string) {
                 cog_push(cog_box_bool(cog_strcmp(a, b) == 0));
             } else {
                 cog_push(cog_box_bool(a == b));
@@ -2251,7 +2251,7 @@ cog_modfunc fne_is_number = {"number?", COG_FUNC, fn_is_number, "Return true if 
 cog_object* fn_is_symbol() { _TYPEP_BODY(,&ot_symbol) }
 cog_object* fn_is_integer() { _TYPEP_BODY(,&ot_int || (a->type == &ot_float && a->as_float == floor(a->as_float))) }
 cog_object* fn_is_list() { _TYPEP_BODY(!a ||,NULL) }
-cog_object* fn_is_string() { _TYPEP_BODY(,&ot_buffer) }
+cog_object* fn_is_string() { _TYPEP_BODY(,&ot_string) }
 cog_object* fn_is_block() { _TYPEP_BODY(,&ot_closure) }
 cog_object* fn_is_boolean() { _TYPEP_BODY(,&ot_bool) }
 cog_modfunc fne_is_symbol = {"symbol?", COG_FUNC, fn_is_symbol, "Return true if the object is a symbol."};
@@ -2294,7 +2294,7 @@ cog_modfunc fne_is_io = {"io?", COG_FUNC, fn_is_io, "Return true if the object i
 cog_object* fn_assert_number() { _TYPE_ASSERTION_BODY(&ot_float, &ot_int || a->type == &ot_float) }
 cog_object* fn_assert_symbol() { _TYPE_ASSERTION_BODY(&ot_symbol, &ot_symbol) }
 cog_object* fn_assert_any() { return NULL; }
-cog_object* fn_assert_string() { _TYPE_ASSERTION_BODY(&ot_buffer, &ot_buffer) }
+cog_object* fn_assert_string() { _TYPE_ASSERTION_BODY(&ot_string, &ot_string) }
 cog_object* fn_assert_block() { _TYPE_ASSERTION_BODY(&ot_closure, &ot_closure) }
 cog_object* fn_assert_boolean() { _TYPE_ASSERTION_BODY(&ot_bool, &ot_bool) }
 cog_modfunc fne_assert_number = {"number!", COG_FUNC, fn_assert_number, "Assert that the object is a number."};
@@ -2330,7 +2330,7 @@ cog_modfunc fne_assert_io = {"io!", COG_FUNC, fn_assert_io, "Assert that the obj
 cog_object* fn_first() {
     COG_ENSURE_N_ITEMS(1);
     cog_object* a = cog_pop();
-    if (a && a->type == &ot_buffer) {
+    if (a && a->type == &ot_string) {
         if (cog_strlen(a) == 0) COG_RETURN_ERROR(cog_string("tried to get First of an empty string"));
         cog_push(cog_make_character(cog_nthchar(a, 0)));
         return NULL;
@@ -2345,10 +2345,10 @@ cog_modfunc fne_first = {"first", COG_FUNC, fn_first, "Return the first element 
 cog_object* fn_rest() {
     COG_ENSURE_N_ITEMS(1);
     cog_object* a = cog_pop();
-    if (a && a->type == &ot_buffer) {
+    if (a && a->type == &ot_string) {
         if (cog_strlen(a) == 0) COG_RETURN_ERROR(cog_string("tried to get Rest of an empty string"));
-        cog_object* dup = cog_dup_list_shallow(a);
-        cog_delete_byte_from_buffer_at(&dup, 0);
+        cog_object* dup = cog_strdup(a);
+        cog_string_delete_char(&dup, 0);
         cog_push(dup);
         return NULL;
     }
@@ -2373,7 +2373,7 @@ cog_modfunc fne_push = {"push", COG_FUNC, fn_push, "Push an item onto a list."};
 cog_object* fn_is_empty() {
     COG_ENSURE_N_ITEMS(1);
     cog_object* a = cog_pop();
-    if (a && a->type == &ot_buffer) {
+    if (a && a->type == &ot_string) {
         cog_push(cog_box_bool(cog_strlen(a) == 0));
     } else {
         COG_ENSURE_LIST(a);
@@ -2387,7 +2387,7 @@ cog_object* fn_append() {
     COG_ENSURE_N_ITEMS(2);
     cog_object* a = cog_pop();
     cog_object* b = cog_pop();
-    if (a && b && a->type == &ot_buffer && b->type == &ot_buffer) {
+    if (a && b && a->type == &ot_string && b->type == &ot_string) {
         cog_push(cog_strcat(b, a));
         return NULL;
     }
@@ -2404,7 +2404,7 @@ cog_object* fn_substring() {
     cog_object* end = cog_pop();
     cog_object* start = cog_pop();
     cog_object* a = cog_pop();
-    COG_ENSURE_TYPE(a, &ot_buffer);
+    COG_ENSURE_TYPE(a, &ot_string);
     COG_ENSURE_TYPE(start, &ot_int);
     COG_ENSURE_TYPE(end, &ot_int);
     cog_push(cog_substring(a, start->as_int, end->as_int));
@@ -2503,8 +2503,8 @@ static cog_object_method* builtin_objfunc_table[] = {
     &ome_identifier_run,
     &ome_symbol_stringify,
     &ome_symbol_run,
-    &ome_buffer_stringify,
-    &ome_buffer_run,
+    &ome_string_stringify,
+    &ome_string_run,
     &ome_iostring_write,
     &ome_iostring_getch,
     &ome_iostring_ungets,
@@ -2527,7 +2527,7 @@ static cog_obj_type* builtin_types[] = {
     &ot_float,
     &ot_identifier,
     &ot_symbol,
-    &ot_buffer,
+    &ot_string,
     &ot_iostring,
     &ot_bfunction,
     &ot_parser_sentinel,
