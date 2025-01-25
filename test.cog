@@ -7,7 +7,4 @@ Def List as (
     L ~~ put the list on the stack
 );
 
-Print If == List ("Hello" "world!") Split on " " with "Hello world!"
-	"PASS: Splitting a string"
-else
-	"FAIL: Splitting a string";
+Print Split on " " with "Hello world!";

@@ -219,7 +219,7 @@ cog_object* cog_make_identifier(cog_object*);
  * @param i The identifier to explode.
  * @return The buffer containing the exploded identifier.
  */
-cog_object* cog_explode_identifier(cog_object* i);
+cog_object* cog_explode_identifier(cog_object*, bool);
 
 /**
  * Checks if two identifiers are the same.

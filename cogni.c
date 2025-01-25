@@ -608,7 +608,7 @@ static bool pack_identifier(cog_object* string, cog_packed_identifier* out) {
     return true;
 }
 
-cog_object* cog_explode_identifier(cog_object* i) {
+cog_object* cog_explode_identifier(cog_object* i, bool cap_first) {
     cog_object* buffer = cog_emptystring();
     cog_object* tail = buffer;
     if (i->as_packed_sym & 1) {
@@ -618,7 +618,7 @@ cog_object* cog_explode_identifier(cog_object* i) {
         cog_packed_identifier div = 1;
         while ((div * base) < s)
             div *= base;
-        int (*tr)(int) = toupper;
+        int (*tr)(int) = cap_first ? toupper : tolower;
         for (;;) {
             cog_string_append_byte(&tail, tr(PACKEDALPHABET[(s / div) % base]));
             if (div == 1) break;
@@ -696,7 +696,7 @@ cog_object* cog_make_identifier(cog_object* string) {
 cog_object* m_stringify_identifier() {
     cog_object* i = cog_pop();
     cog_pop(); // ignore readably
-    cog_push(cog_explode_identifier(i));
+    cog_push(cog_explode_identifier(i, true));
     return NULL;
 }
 cog_object_method ome_identifier_stringify = {
@@ -733,7 +733,7 @@ bool cog_same_identifiers(cog_object* s1, cog_object* s2) {
     if (!s1 || !s2) return false;
     assert(s1->type == &ot_identifier);
     assert(s2->type == &ot_identifier);
-    return !cog_strcasecmp(cog_explode_identifier(s1), cog_explode_identifier(s2));
+    return !cog_strcasecmp(cog_explode_identifier(s1, false), cog_explode_identifier(s2, false));
 }
 
 // MARK: SYMBOLS
@@ -752,7 +752,7 @@ cog_object* m_symbol_stringify() {
     cog_object* sym = cog_pop();
     bool readably = cog_expect_type_fatal(cog_pop(), &ot_bool)->as_int;
     if (!readably) {
-        cog_push(cog_explode_identifier(sym->next));
+        cog_push(cog_explode_identifier(sym->next, false));
     } else {
         cog_push(cog_sprintf("\\%O", sym->next));
     }
@@ -1906,6 +1906,7 @@ cog_object* m_def_or_let_run() {
     cog_pop(); // ignore cookie
     bool is_def = self->as_int;
     cog_object* symbol = self->next;
+    COG_ENSURE_N_ITEMS(1);
     cog_object* value = cog_pop();
     cog_defun(symbol, is_def ? value : cog_make_var(value));
     return NULL;
@@ -2123,6 +2124,15 @@ cog_object* fn_eq() {
                 cog_push(cog_box_bool(cog_same_identifiers(a->next, b->next)));
             } else if (a->type == &ot_string) {
                 cog_push(cog_box_bool(cog_strcmp(a, b) == 0));
+            } else if (a->type == NULL) {
+                cog_run_next(cog_make_identifier_c("And"), NULL, NULL);
+                cog_run_next(cog_make_identifier_c("=="), NULL, NULL);
+                cog_run_next(cog_make_identifier_c("=="), NULL, NULL);
+                cog_push(a->next);
+                cog_push(b->next);
+                cog_push(a->data);
+                cog_push(b->data);
+                debug_dump_stuff();
             } else {
                 cog_push(cog_box_bool(a == b));
             }
@@ -2152,12 +2162,12 @@ cog_object* fn_if() {
     cog_push(cond->as_int ? iftrue : iffalse);
     return NULL;
 }
-cog_modfunc fne_if = {"if", COG_FUNC, fn_if, "If cond is true, return iftrue, else return iffalse."};
+cog_modfunc fne_if = {"If", COG_FUNC, fn_if, "If cond is true, return iftrue, else return iffalse."};
 
 cog_object* fn_print() {
     COG_ENSURE_N_ITEMS(1);
     cog_object* obj = cog_pop();
-    cog_printf("%#O\n", obj);
+    cog_printf(obj && obj->type == &ot_string ? "%#O\n" : "%O\n", obj);
     return NULL;
 }
 cog_modfunc fne_print = {"Print", COG_FUNC, fn_print, "Print an object to stdout, with a newline."};
@@ -2165,7 +2175,7 @@ cog_modfunc fne_print = {"Print", COG_FUNC, fn_print, "Print an object to stdout
 cog_object* fn_put() {
     COG_ENSURE_N_ITEMS(1);
     cog_object* obj = cog_pop();
-    cog_printf("%#O", obj);
+    cog_printf(obj && obj->type == &ot_string ? "%#O" : "%O", obj);
     return NULL;
 }
 cog_modfunc fne_put = {"Put", COG_FUNC, fn_put, "Print an object to stdout, without a newline."};
@@ -2211,7 +2221,7 @@ cog_object* fn_modulo() {
     }
     return NULL;
 }
-cog_modfunc fne_modulo = {"modulo", COG_FUNC, fn_modulo, "Return the modulo of two numbers."};
+cog_modfunc fne_modulo = {"Modulo", COG_FUNC, fn_modulo, "Return the modulo of two numbers."};
 
 cog_object* fn_sqrt() {
     COG_ENSURE_N_ITEMS(1);
@@ -2221,7 +2231,7 @@ cog_object* fn_sqrt() {
     cog_push(cog_box_float(sqrt(a_val)));
     return NULL;
 }
-cog_modfunc fne_sqrt = {"sqrt", COG_FUNC, fn_sqrt, "Return the square root of a number."};
+cog_modfunc fne_sqrt = {"Sqrt", COG_FUNC, fn_sqrt, "Return the square root of a number."};
 
 #define _BOOLBODY(op) \
     COG_ENSURE_N_ITEMS(2); \
@@ -2235,9 +2245,9 @@ cog_modfunc fne_sqrt = {"sqrt", COG_FUNC, fn_sqrt, "Return the square root of a 
 cog_object* fn_or() { _BOOLBODY(||) }
 cog_object* fn_and() { _BOOLBODY(&&) }
 cog_object* fn_xor() { _BOOLBODY(^) }
-cog_modfunc fne_or = {"or", COG_FUNC, fn_or, "Return the logical OR of two booleans."};
-cog_modfunc fne_and = {"and", COG_FUNC, fn_and, "Return the logical AND of two booleans."};
-cog_modfunc fne_xor = {"xor", COG_FUNC, fn_xor, "Return the logical XOR of two booleans."};
+cog_modfunc fne_or = {"Or", COG_FUNC, fn_or, "Return the logical OR of two booleans."};
+cog_modfunc fne_and = {"And", COG_FUNC, fn_and, "Return the logical AND of two booleans."};
+cog_modfunc fne_xor = {"Xor", COG_FUNC, fn_xor, "Return the logical XOR of two booleans."};
 
 cog_object* fn_not() {
     COG_ENSURE_N_ITEMS(1);
@@ -2246,7 +2256,7 @@ cog_object* fn_not() {
     cog_push(cog_box_bool(!a->as_int));
     return NULL;
 }
-cog_modfunc fne_not = {"not", COG_FUNC, fn_not, "Return the logical NOT of a boolean."};
+cog_modfunc fne_not = {"Not", COG_FUNC, fn_not, "Return the logical NOT of a boolean."};
 
 cog_object* fn_is_number() {
     COG_ENSURE_N_ITEMS(1);
@@ -2254,7 +2264,7 @@ cog_object* fn_is_number() {
     cog_push(cog_box_bool(a->type == &ot_int || a->type == &ot_float));
     return NULL;
 }
-cog_modfunc fne_is_number = {"number?", COG_FUNC, fn_is_number, "Return true if the object is a number (integer or float)."};
+cog_modfunc fne_is_number = {"Number?", COG_FUNC, fn_is_number, "Return true if the object is a number (integer or float)."};
 
 #define _TYPEP_BODY(f, typeobj) \
     COG_ENSURE_N_ITEMS(1); \
@@ -2268,12 +2278,12 @@ cog_object* fn_is_list() { _TYPEP_BODY(!a ||,NULL) }
 cog_object* fn_is_string() { _TYPEP_BODY(,&ot_string) }
 cog_object* fn_is_block() { _TYPEP_BODY(,&ot_closure) }
 cog_object* fn_is_boolean() { _TYPEP_BODY(,&ot_bool) }
-cog_modfunc fne_is_symbol = {"symbol?", COG_FUNC, fn_is_symbol, "Return true if the object is a symbol."};
-cog_modfunc fne_is_integer = {"integer?", COG_FUNC, fn_is_integer, "Return true if the object is an integer."};
-cog_modfunc fne_is_list = {"list?", COG_FUNC, fn_is_list, "Return true if the object is a list."};
-cog_modfunc fne_is_string = {"string?", COG_FUNC, fn_is_string, "Return true if the object is a string."};
-cog_modfunc fne_is_block = {"block?", COG_FUNC, fn_is_block, "Return true if the object is a block."};
-cog_modfunc fne_is_boolean = {"boolean?", COG_FUNC, fn_is_boolean, "Return true if the object is a boolean."};
+cog_modfunc fne_is_symbol = {"Symbol?", COG_FUNC, fn_is_symbol, "Return true if the object is a symbol."};
+cog_modfunc fne_is_integer = {"Integer?", COG_FUNC, fn_is_integer, "Return true if the object is an integer."};
+cog_modfunc fne_is_list = {"List?", COG_FUNC, fn_is_list, "Return true if the object is a list."};
+cog_modfunc fne_is_string = {"String?", COG_FUNC, fn_is_string, "Return true if the object is a string."};
+cog_modfunc fne_is_block = {"Block?", COG_FUNC, fn_is_block, "Return true if the object is a block."};
+cog_modfunc fne_is_boolean = {"Boolean?", COG_FUNC, fn_is_boolean, "Return true if the object is a boolean."};
 
 cog_object* fn_is_zero() {
     COG_ENSURE_N_ITEMS(1);
@@ -2287,7 +2297,7 @@ cog_object* fn_is_zero() {
     }
     return NULL;
 }
-cog_modfunc fne_is_zero = {"zero?", COG_FUNC, fn_is_zero, "Return true if the object is a number and is zero."};
+cog_modfunc fne_is_zero = {"Zero?", COG_FUNC, fn_is_zero, "Return true if the object is a number and is zero."};
 
 cog_object* fn_is_io() {
     COG_ENSURE_N_ITEMS(1);
@@ -2297,7 +2307,7 @@ cog_object* fn_is_io() {
     cog_push(cog_box_bool(!cog_same_identifiers(res, cog_not_implemented())));
     return NULL;
 }
-cog_modfunc fne_is_io = {"io?", COG_FUNC, fn_is_io, "Return true if the object is an IO object; i.e. it responds to Write."};
+cog_modfunc fne_is_io = {"IO?", COG_FUNC, fn_is_io, "Return true if the object is an IO object; i.e. it responds to Write."};
 
 #define _TYPE_ASSERTION_BODY(typeobj, texpr) \
     COG_ENSURE_N_ITEMS(1); \
@@ -2307,16 +2317,14 @@ cog_modfunc fne_is_io = {"io?", COG_FUNC, fn_is_io, "Return true if the object i
     return NULL;
 cog_object* fn_assert_number() { _TYPE_ASSERTION_BODY(&ot_float, &ot_int || a->type == &ot_float) }
 cog_object* fn_assert_symbol() { _TYPE_ASSERTION_BODY(&ot_symbol, &ot_symbol) }
-cog_object* fn_assert_any() { return NULL; }
 cog_object* fn_assert_string() { _TYPE_ASSERTION_BODY(&ot_string, &ot_string) }
 cog_object* fn_assert_block() { _TYPE_ASSERTION_BODY(&ot_closure, &ot_closure) }
 cog_object* fn_assert_boolean() { _TYPE_ASSERTION_BODY(&ot_bool, &ot_bool) }
-cog_modfunc fne_assert_number = {"number!", COG_FUNC, fn_assert_number, "Assert that the object is a number."};
-cog_modfunc fne_assert_symbol = {"symbol!", COG_FUNC, fn_assert_symbol, "Assert that the object is a symbol."};
-cog_modfunc fne_assert_any = {"any!", COG_FUNC, fn_assert_any, "Assert that the object is of any type. This doesn't actually do anything."};
-cog_modfunc fne_assert_string = {"string!", COG_FUNC, fn_assert_string, "Assert that the object is a string."};
-cog_modfunc fne_assert_block = {"block!", COG_FUNC, fn_assert_block, "Assert that the object is a block."};
-cog_modfunc fne_assert_boolean = {"boolean!", COG_FUNC, fn_assert_boolean, "Assert that the object is a boolean."};
+cog_modfunc fne_assert_number = {"Number!", COG_FUNC, fn_assert_number, "Assert that the object is a number."};
+cog_modfunc fne_assert_symbol = {"Symbol!", COG_FUNC, fn_assert_symbol, "Assert that the object is a symbol."};
+cog_modfunc fne_assert_string = {"String!", COG_FUNC, fn_assert_string, "Assert that the object is a string."};
+cog_modfunc fne_assert_block = {"Block!", COG_FUNC, fn_assert_block, "Assert that the object is a block."};
+cog_modfunc fne_assert_boolean = {"Boolean!", COG_FUNC, fn_assert_boolean, "Assert that the object is a boolean."};
 
 cog_object* fn_assert_list() {
     COG_ENSURE_N_ITEMS(1);
@@ -2325,7 +2333,7 @@ cog_object* fn_assert_list() {
     cog_push(a);
     return NULL;
 }
-cog_modfunc fne_assert_list = {"list!", COG_FUNC, fn_assert_list, "Assert that the object is a list."};
+cog_modfunc fne_assert_list = {"List!", COG_FUNC, fn_assert_list, "Assert that the object is a list."};
 
 cog_object* fn_assert_io() {
     COG_ENSURE_N_ITEMS(1);
@@ -2339,7 +2347,7 @@ cog_object* fn_assert_io() {
     cog_push(a);
     return NULL;
 }
-cog_modfunc fne_assert_io = {"io!", COG_FUNC, fn_assert_io, "Assert that the object is an IO object."};
+cog_modfunc fne_assert_io = {"IO!", COG_FUNC, fn_assert_io, "Assert that the object is an IO object."};
 
 cog_object* fn_first() {
     COG_ENSURE_N_ITEMS(1);
@@ -2354,7 +2362,7 @@ cog_object* fn_first() {
     cog_push(a->data);
     return NULL;
 }
-cog_modfunc fne_first = {"first", COG_FUNC, fn_first, "Return the first element of a list."};
+cog_modfunc fne_first = {"First", COG_FUNC, fn_first, "Return the first element of a list."};
 
 cog_object* fn_rest() {
     COG_ENSURE_N_ITEMS(1);
@@ -2371,7 +2379,7 @@ cog_object* fn_rest() {
     cog_push(a->next);
     return NULL;
 }
-cog_modfunc fne_rest = {"rest", COG_FUNC, fn_rest, "Return the rest of a list."};
+cog_modfunc fne_rest = {"Rest", COG_FUNC, fn_rest, "Return the rest of a list."};
 
 cog_object* fn_push() {
     COG_ENSURE_N_ITEMS(2);
@@ -2382,7 +2390,7 @@ cog_object* fn_push() {
     cog_push(b);
     return NULL;
 }
-cog_modfunc fne_push = {"push", COG_FUNC, fn_push, "Push an item onto a list."};
+cog_modfunc fne_push = {"Push", COG_FUNC, fn_push, "Push an item onto a list."};
 
 cog_object* fn_is_empty() {
     COG_ENSURE_N_ITEMS(1);
@@ -2395,7 +2403,7 @@ cog_object* fn_is_empty() {
     }
     return NULL;
 }
-cog_modfunc fne_is_empty = {"empty?", COG_FUNC, fn_is_empty, "Return true if the list is empty."};
+cog_modfunc fne_is_empty = {"Empty?", COG_FUNC, fn_is_empty, "Return true if the list is empty."};
 
 cog_object* fn_append() {
     COG_ENSURE_N_ITEMS(2);
@@ -2411,7 +2419,7 @@ cog_object* fn_append() {
     cog_push(b);
     return NULL;
 }
-cog_modfunc fne_append = {"append", COG_FUNC, fn_append, "Append two lists or strings."};
+cog_modfunc fne_append = {"Append", COG_FUNC, fn_append, "Append two lists or strings."};
 
 cog_object* fn_substring() {
     COG_ENSURE_N_ITEMS(3);
@@ -2424,7 +2432,7 @@ cog_object* fn_substring() {
     cog_push(cog_substring(a, start->as_int, end->as_int));
     return NULL;
 }
-cog_modfunc fne_substring = {"substring", COG_FUNC, fn_substring, "Return a substring of a string."};
+cog_modfunc fne_substring = {"Substring", COG_FUNC, fn_substring, "Return a substring of a string."};
 
 cog_object* fn_ordinal() {
     COG_ENSURE_N_ITEMS(1);
@@ -2440,7 +2448,7 @@ cog_object* fn_ordinal() {
     cog_push(cog_box_int(chr));
     return NULL;
 }
-cog_modfunc fne_ordinal = {"ordinal", COG_FUNC, fn_ordinal, "Return the ordinal of a Unicode character (a one-character string)."};
+cog_modfunc fne_ordinal = {"Ordinal", COG_FUNC, fn_ordinal, "Return the ordinal of a Unicode character (a one-character string)."};
 
 cog_object* fn_character() {
     COG_ENSURE_N_ITEMS(1);
@@ -2459,7 +2467,7 @@ cog_object* fn_character() {
     cog_push(cog_string(b));
     return NULL;
 }
-cog_modfunc fne_character = {"character", COG_FUNC, fn_character, "Return the character of a Unicode ordinal."};
+cog_modfunc fne_character = {"Character", COG_FUNC, fn_character, "Return the character of a Unicode ordinal."};
 
 cog_object* fn_split() {
     COG_ENSURE_N_ITEMS(2);
@@ -2480,10 +2488,11 @@ cog_object* fn_split() {
     }
     if (startpos < len)
         cog_push_to(&list, cog_substring(a, startpos, len));
+    cog_reverse_list_inplace(&list);
     cog_push(list);
     return NULL;
 }
-cog_modfunc fne_split = {"split", COG_FUNC, fn_split, "Split a string into a list of substrings."};
+cog_modfunc fne_split = {"Split", COG_FUNC, fn_split, "Split a string into a list of substrings."};
 
 #define _ONEFUNNUMBODY(ffn, ifn) \
     COG_ENSURE_N_ITEMS(1); \
@@ -2500,10 +2509,10 @@ cog_object* fn_floor() { _ONEFUNNUMBODY(floor,) }
 cog_object* fn_round() { _ONEFUNNUMBODY(round,) }
 cog_object* fn_ceil() { _ONEFUNNUMBODY(ceil,) }
 cog_object* fn_abs()  { _ONEFUNNUMBODY(fabs, llabs) }
-cog_modfunc fne_floor = {"floor", COG_FUNC, fn_floor, "Return the floor of a number."};
-cog_modfunc fne_round = {"round", COG_FUNC, fn_round, "Return the rounded number."};
-cog_modfunc fne_ceil = {"ceiling", COG_FUNC, fn_ceil, "Return the ceiling of a number."};
-cog_modfunc fne_abs = {"abs", COG_FUNC, fn_abs, "Return the absolute value of a number."};
+cog_modfunc fne_floor = {"Floor", COG_FUNC, fn_floor, "Return the floor of a number."};
+cog_modfunc fne_round = {"Round", COG_FUNC, fn_round, "Return the rounded number."};
+cog_modfunc fne_ceil = {"Ceiling", COG_FUNC, fn_ceil, "Return the ceiling of a number."};
+cog_modfunc fne_abs = {"Abs", COG_FUNC, fn_abs, "Return the absolute value of a number."};
 
 cog_object* fn_error() {
     COG_ENSURE_N_ITEMS(1);
@@ -2512,7 +2521,7 @@ cog_object* fn_error() {
     cog_push(a);
     return cog_error();
 }
-cog_modfunc fne_error = {"error", COG_FUNC, fn_error, "Raise an error with a message."};
+cog_modfunc fne_error = {"Error", COG_FUNC, fn_error, "Raise an error with a message."};
 
 cog_object* fn_number() {
     COG_ENSURE_N_ITEMS(1);
@@ -2531,7 +2540,7 @@ cog_object* fn_number() {
     }
     return NULL;
 }
-cog_modfunc fne_number = {"number", COG_FUNC, fn_number, "Convert a string to a number."};
+cog_modfunc fne_number = {"Number", COG_FUNC, fn_number, "Convert a string to a number."};
 
 cog_object* fn_wait() {
     COG_ENSURE_N_ITEMS(1);
@@ -2541,13 +2550,33 @@ cog_object* fn_wait() {
     usleep(duration * 1000000);
     return NULL;
 }
-cog_modfunc fne_wait = {"wait", COG_FUNC, fn_wait, "Sleep for a number of seconds."};
+cog_modfunc fne_wait = {"Wait", COG_FUNC, fn_wait, "Sleep for a number of seconds."};
 
 cog_object* fn_stop() {
     cog_quit();
     exit(EXIT_SUCCESS);
 }
-cog_modfunc fne_stop = {"stop", COG_FUNC, fn_stop, "Stop the program."};
+cog_modfunc fne_stop = {"Stop", COG_FUNC, fn_stop, "Stop the program."};
+
+cog_object* fn_show() {
+    COG_ENSURE_N_ITEMS(1);
+    cog_object* a = cog_pop();
+    cog_push(cog_sprintf("%#O", a));
+    return NULL;
+}
+cog_modfunc fne_show = {"Show", COG_FUNC, fn_show, "Turn an object into its human-readable string representation."};
+
+cog_object* fn_stack() {
+    cog_push(COG_GLOBALS.stack);
+    return NULL;
+}
+cog_modfunc fne_stack = {"Stack", COG_FUNC, fn_stack, "Push the stack to itself."};
+
+cog_object* fn_clear() {
+    COG_GLOBALS.stack = NULL;
+    return NULL;
+}
+cog_modfunc fne_clear = {"Clear", COG_FUNC, fn_clear, "Empty everything from the stack."};
 
 // MARK: BUILTINS TABLES
 
@@ -2615,7 +2644,6 @@ static cog_modfunc* builtin_modfunc_table[] = {
     // type assertions
     &fne_assert_number,
     &fne_assert_symbol,
-    &fne_assert_any,
     &fne_assert_string,
     &fne_assert_block,
     &fne_assert_boolean,
@@ -2635,13 +2663,17 @@ static cog_modfunc* builtin_modfunc_table[] = {
     &fne_ordinal,
     &fne_character,
     &fne_split,
+    // list functions
     // conversion functions
     &fne_number,
+    &fne_show,
     // error handling
     &fne_error,
     // misc
     &fne_wait,
     &fne_stop,
+    &fne_stack,
+    &fne_clear,
     NULL
 };
 
