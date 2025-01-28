@@ -760,7 +760,7 @@ cog_object* m_run_identifier() {
 }
 cog_object_method ome_identifier_run = {&ot_identifier, COG_M_EXEC, m_run_identifier};
 
-int64_t _string_hash(cog_object*, int64_t);
+static int64_t _string_hash(cog_object*, int64_t);
 
 static cog_object* m_identifier_hash() {
     cog_push(cog_box_int(_string_hash(cog_explode_identifier(cog_pop(), true), 14695981039346656039ULL)));
@@ -800,11 +800,11 @@ cog_object* m_symbol_show() {
 }
 cog_object_method ome_symbol_show = {&ot_symbol, COG_M_SHOW, m_symbol_show};
 
-static cog_object* m_identifier_hash() {
+static cog_object* m_symbol_hash() {
     cog_push(cog_box_int(_string_hash(cog_explode_identifier(cog_pop()->next, false), 14695981039346656035ULL)));
     return NULL;
 }
-cog_object_method ome_symbol_hash = {&ot_symbol, COG_M_HASH, cog_not_implemented};
+cog_object_method ome_symbol_hash = {&ot_symbol, COG_M_HASH, m_symbol_hash};
 
 // MARK: STRINGS
 
