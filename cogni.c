@@ -792,10 +792,11 @@ cog_object* cog_sym(cog_object* i) {
 cog_object* m_symbol_show() {
     cog_object* sym = cog_pop();
     bool readably = cog_expect_type_fatal(cog_pop(), &cog_ot_bool)->as_int;
+    cog_object* chars = cog_explode_identifier(sym->next, false);
     if (!readably) {
-        cog_push(cog_explode_identifier(sym->next, false));
+        cog_push(chars);
     } else {
-        cog_push(cog_sprintf("\\%O", sym->next));
+        cog_push(cog_sprintf("\\%#O", chars));
     }
     return NULL;
 }

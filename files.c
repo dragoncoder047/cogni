@@ -130,7 +130,7 @@ cog_object* fn_open() {
     else if (cog_same_identifiers(mode->next, cog_make_identifier_c("read-append"))) mod = "a+";
     else if (cog_same_identifiers(mode->next, cog_make_identifier_c("read-write"))) mod = "w+";
     else if (cog_same_identifiers(mode->next, cog_make_identifier_c("read-write-existing"))) mod = "r+";
-    else COG_RETURN_ERROR(cog_sprintf("Expected one of \\read, \\write, \\append, \\read-write, \\read-append, \\read-write-existing but got %#O", mode));
+    else COG_RETURN_ERROR(cog_sprintf("Expected one of \\read, \\write, \\append, \\read-write, \\read-append, \\read-write-existing but got %O", mode));
     // get the filename
     size_t len = cog_strlen(filename);
     char* buf = alloca(len + 1);
