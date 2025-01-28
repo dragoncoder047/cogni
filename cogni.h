@@ -260,6 +260,13 @@ cog_object* cog_strappend(cog_object*, cog_object*);
 cog_object* cog_string(const char* const s);
 
 /**
+ * Puts the string into the given C buffer, and returns the number of characters stored.
+ * @param len The size of the buffer. If the string is too long to fit into the given buffer,
+ * the value returned will be equal to len.
+ */
+size_t cog_string_to_cstring(cog_object*, char* const cstr, size_t);
+
+/**
  * Creates a string from a C char array with a known length.
  */
 cog_object* cog_string_from_bytes(const char* const cstr, size_t);
@@ -578,6 +585,14 @@ cog_object* cog_hash(cog_object* obj);
 
 extern cog_obj_type cog_ot_pointer;
 extern cog_obj_type cog_ot_owned_pointer;
+extern cog_obj_type cog_ot_symbol;
+extern cog_obj_type cog_ot_identifier;
+extern cog_obj_type cog_ot_string;
+extern cog_obj_type cog_ot_int;
+extern cog_obj_type cog_ot_bool;
+extern cog_obj_type cog_ot_float;
+extern cog_obj_type cog_ot_boolean;
+extern cog_obj_type cog_ot_continuation;
 
 /**
  * Returns early with an error status and the specified message.
@@ -641,10 +656,10 @@ extern cog_obj_type cog_ot_owned_pointer;
  */
 #define COG_GET_NUMBER(obj, var) \
     do { \
-        if ((obj) == NULL || ((obj)->type != &ot_int && (obj)->type != &ot_float)) { \
+        if ((obj) == NULL || ((obj)->type != &cog_ot_int && (obj)->type != &cog_ot_float)) { \
             COG_RETURN_ERROR(cog_sprintf("Expected a number, but got %s", (obj) ? (obj)->type->typename : "NULL")); \
         } \
-        else var = (obj)->type == &ot_float ? (obj)->as_float : (obj)->as_int; \
+        else var = (obj)->type == &cog_ot_float ? (obj)->as_float : (obj)->as_int; \
     } while (0)
 
 #ifdef __cplusplus

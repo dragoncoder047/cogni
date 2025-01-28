@@ -3,6 +3,7 @@
         "cogni"
     ],
     "files.associations": {
-        "prelude.inc": "c"
+        "prelude.inc": "c",
+        "prelude2.inc": "c"
     }
 }

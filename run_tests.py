@@ -1,6 +1,9 @@
 import glob
 import subprocess
 import re
+import os
+
+os.chdir("cognac/")
 
 successes = 0
 failures = 0
@@ -41,8 +44,8 @@ def test(file: str, process: subprocess.Popen, pad_length: int):
     print()
 
 
-test_files = sorted(glob.glob("cognac/tests/*.cog"))
-test_commands = ["./cogni " + file for file in test_files]
+test_files = sorted(glob.glob("tests/*.cog"))
+test_commands = ["../cogni " + file for file in test_files]
 test_processes = [subprocess.Popen(
     command, shell=True, stderr=subprocess.STDOUT, stdout=subprocess.PIPE)
     for command in test_commands]

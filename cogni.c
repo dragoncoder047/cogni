@@ -508,14 +508,14 @@ cog_object* cog_obj_push_self() {
 
 // MARK: NUMBERS
 
-cog_obj_type ot_int = {"Integer", NULL};
+cog_obj_type cog_ot_int = {"Integer", NULL};
 cog_object* cog_box_int(int64_t i) {
-    cog_object* obj = cog_make_obj(&ot_int);
+    cog_object* obj = cog_make_obj(&cog_ot_int);
     obj->as_int = i;
     return obj;
 }
 int64_t cog_unbox_int(cog_object* obj) {
-    assert(obj->type == &ot_int);
+    assert(obj->type == &cog_ot_int);
     return obj->as_int;
 }
 cog_object* int_printself() {
@@ -526,23 +526,23 @@ cog_object* int_printself() {
     cog_push(cog_string(buffer));
     return NULL;
 }
-cog_object_method ome_int_show = {&ot_int, COG_M_SHOW, int_printself};
-cog_object_method ome_int_run = {&ot_int, COG_M_EXEC, cog_obj_push_self};
+cog_object_method ome_int_show = {&cog_ot_int, COG_M_SHOW, int_printself};
+cog_object_method ome_int_run = {&cog_ot_int, COG_M_EXEC, cog_obj_push_self};
 
 static cog_object* m_int_hash() {
     // Integers hash to themselves
     return NULL;
 }
-cog_object_method ome_int_hash = {&ot_int, COG_M_HASH, m_int_hash};
+cog_object_method ome_int_hash = {&cog_ot_int, COG_M_HASH, m_int_hash};
 
-cog_obj_type ot_bool = {"Boolean", NULL};
+cog_obj_type cog_ot_bool = {"Boolean", NULL};
 cog_object* cog_box_bool(bool i) {
-    cog_object* obj = cog_make_obj(&ot_bool);
+    cog_object* obj = cog_make_obj(&cog_ot_bool);
     obj->as_int = i;
     return obj;
 }
 bool cog_unbox_bool(cog_object* obj) {
-    assert(obj->type == &ot_bool);
+    assert(obj->type == &cog_ot_bool);
     return obj->as_int;
 }
 cog_object* bool_printself() {
@@ -553,8 +553,8 @@ cog_object* bool_printself() {
     cog_push(cog_string(buffer));
     return NULL;
 }
-cog_object_method ome_bool_show = {&ot_bool, COG_M_SHOW, bool_printself};
-cog_object_method ome_bool_run = {&ot_bool, COG_M_EXEC, cog_obj_push_self};
+cog_object_method ome_bool_show = {&cog_ot_bool, COG_M_SHOW, bool_printself};
+cog_object_method ome_bool_run = {&cog_ot_bool, COG_M_EXEC, cog_obj_push_self};
 
 static cog_object* m_bool_hash() {
     cog_object* num = cog_pop();
@@ -563,16 +563,16 @@ static cog_object* m_bool_hash() {
     cog_push(cog_box_int(hash));
     return NULL;
 }
-cog_object_method ome_bool_hash = {&ot_bool, COG_M_HASH, m_bool_hash};
+cog_object_method ome_bool_hash = {&cog_ot_bool, COG_M_HASH, m_bool_hash};
 
-cog_obj_type ot_float = {"Number", NULL};
+cog_obj_type cog_ot_float = {"Number", NULL};
 cog_object* cog_box_float(double i) {
-    cog_object* obj = cog_make_obj(&ot_float);
+    cog_object* obj = cog_make_obj(&cog_ot_float);
     obj->as_float = i;
     return obj;
 }
 double cog_unbox_float(cog_object* obj) {
-    assert(obj->type == &ot_float);
+    assert(obj->type == &cog_ot_float);
     return obj->as_float;
 }
 cog_object* float_printself() {
@@ -583,8 +583,8 @@ cog_object* float_printself() {
     cog_push(cog_string(buffer));
     return NULL;
 }
-cog_object_method ome_float_show = {&ot_float, COG_M_SHOW, float_printself};
-cog_object_method ome_float_run = {&ot_float, COG_M_EXEC, cog_obj_push_self};
+cog_object_method ome_float_show = {&cog_ot_float, COG_M_SHOW, float_printself};
+cog_object_method ome_float_run = {&cog_ot_float, COG_M_EXEC, cog_obj_push_self};
 
 static cog_object* m_float_hash() {
     cog_object* num = cog_pop();
@@ -594,7 +594,7 @@ static cog_object* m_float_hash() {
     cog_push(cog_box_int(hash));
     return NULL;
 }
-cog_object_method ome_float_hash = {&ot_float, COG_M_HASH, m_float_hash};
+cog_object_method ome_float_hash = {&cog_ot_float, COG_M_HASH, m_float_hash};
 
 // MARK: IDENTIFIERS
 
@@ -603,7 +603,7 @@ static cog_object* walk_identifier(cog_object* i, cog_walk_fun f, cog_object* ar
     if (i->as_int) return NULL;
     return i->next;
 }
-cog_obj_type ot_identifier = {"Identifier", walk_identifier};
+cog_obj_type cog_ot_identifier = {"Identifier", walk_identifier};
 
 // TODO: parameterize / calculate this constant at compile time
 #define MAXPACKED 11
@@ -671,7 +671,7 @@ cog_object* cog_explode_identifier(cog_object* i, bool cap_first) {
 
 cog_object* cog_make_identifier_c(const char* const name) {
     // TODO: intern?
-    cog_object* out = cog_make_obj(&ot_identifier);
+    cog_object* out = cog_make_obj(&cog_ot_identifier);
     // first try the builtin function names
     COG_ITER_LIST(COG_GLOBALS.modules, modobj) {
         cog_module* mod = (cog_module*)modobj->as_ptr;
@@ -699,7 +699,7 @@ cog_object* cog_make_identifier_c(const char* const name) {
 }
 
 cog_object* cog_make_identifier(cog_object* string) {
-    cog_object* out = cog_make_obj(&ot_identifier);
+    cog_object* out = cog_make_obj(&cog_ot_identifier);
     // first try the builtin function names
     COG_ITER_LIST(COG_GLOBALS.modules, modobj) {
         cog_module* mod = (cog_module*)modobj->as_ptr;
@@ -733,7 +733,7 @@ cog_object* m_show_identifier() {
     return NULL;
 }
 cog_object_method ome_identifier_show = {
-    &ot_identifier,
+    &cog_ot_identifier,
     COG_M_SHOW,
     m_show_identifier
 };
@@ -759,7 +759,7 @@ cog_object* m_run_identifier() {
         }
     }
 }
-cog_object_method ome_identifier_run = {&ot_identifier, COG_M_EXEC, m_run_identifier};
+cog_object_method ome_identifier_run = {&cog_ot_identifier, COG_M_EXEC, m_run_identifier};
 
 static int64_t _string_hash(cog_object*, int64_t);
 
@@ -767,31 +767,31 @@ static cog_object* m_identifier_hash() {
     cog_push(cog_box_int(_string_hash(cog_explode_identifier(cog_pop(), true), 14695981039346656039ULL)));
     return NULL;
 }
-cog_object_method ome_identifier_hash = {&ot_identifier, COG_M_HASH, m_identifier_hash};
+cog_object_method ome_identifier_hash = {&cog_ot_identifier, COG_M_HASH, m_identifier_hash};
 
 bool cog_same_identifiers(cog_object* s1, cog_object* s2) {
     if (!s1 && !s2) return true;
     if (!s1 || !s2) return false;
-    assert(s1->type == &ot_identifier);
-    assert(s2->type == &ot_identifier);
+    assert(s1->type == &cog_ot_identifier);
+    assert(s2->type == &cog_ot_identifier);
     return !cog_strcasecmp(cog_explode_identifier(s1, false), cog_explode_identifier(s2, false));
 }
 
 // MARK: SYMBOLS
 
-cog_obj_type ot_symbol = {"Symbol", cog_walk_only_next, NULL};
+cog_obj_type cog_ot_symbol = {"Symbol", cog_walk_only_next, NULL};
 
-cog_object_method ome_symbol_run = {&ot_symbol, COG_M_EXEC, cog_obj_push_self};
+cog_object_method ome_symbol_run = {&cog_ot_symbol, COG_M_EXEC, cog_obj_push_self};
 
 cog_object* cog_sym(cog_object* i) {
-    cog_object* s = cog_make_obj(&ot_symbol);
+    cog_object* s = cog_make_obj(&cog_ot_symbol);
     s->next = i;
     return s;
 }
 
 cog_object* m_symbol_show() {
     cog_object* sym = cog_pop();
-    bool readably = cog_expect_type_fatal(cog_pop(), &ot_bool)->as_int;
+    bool readably = cog_expect_type_fatal(cog_pop(), &cog_ot_bool)->as_int;
     if (!readably) {
         cog_push(cog_explode_identifier(sym->next, false));
     } else {
@@ -799,20 +799,20 @@ cog_object* m_symbol_show() {
     }
     return NULL;
 }
-cog_object_method ome_symbol_show = {&ot_symbol, COG_M_SHOW, m_symbol_show};
+cog_object_method ome_symbol_show = {&cog_ot_symbol, COG_M_SHOW, m_symbol_show};
 
 static cog_object* m_symbol_hash() {
     cog_push(cog_box_int(_string_hash(cog_explode_identifier(cog_pop()->next, false), 14695981039346656035ULL)));
     return NULL;
 }
-cog_object_method ome_symbol_hash = {&ot_symbol, COG_M_HASH, m_symbol_hash};
+cog_object_method ome_symbol_hash = {&cog_ot_symbol, COG_M_HASH, m_symbol_hash};
 
 // MARK: STRINGS
 
-cog_obj_type ot_string = {"String", cog_walk_only_next, NULL};
+cog_obj_type cog_ot_string = {"String", cog_walk_only_next, NULL};
 
 cog_object* cog_emptystring() {
-    return cog_make_obj(&ot_string);
+    return cog_make_obj(&cog_ot_string);
 }
 
 void cog_string_append_byte(cog_object** str, char data) {
@@ -974,7 +974,7 @@ size_t cog_string_to_cstring(cog_object* str, char* const cstr, size_t len) {
 
 cog_object* m_string_show() {
     cog_object* buffer = cog_pop();
-    bool readably = cog_expect_type_fatal(cog_pop(), &ot_bool)->as_int;
+    bool readably = cog_expect_type_fatal(cog_pop(), &cog_ot_bool)->as_int;
     if (!readably) {
         cog_push(buffer);
     }
@@ -997,8 +997,8 @@ cog_object* m_string_show() {
     }
     return NULL;
 }
-cog_object_method ome_string_show = {&ot_string, COG_M_SHOW, m_string_show};
-cog_object_method ome_string_run = {&ot_string, COG_M_EXEC, cog_obj_push_self};
+cog_object_method ome_string_show = {&cog_ot_string, COG_M_SHOW, m_string_show};
+cog_object_method ome_string_run = {&cog_ot_string, COG_M_EXEC, cog_obj_push_self};
 
 static int64_t _string_hash(cog_object* str, int64_t hash) {
     while (str) {
@@ -1015,7 +1015,7 @@ static cog_object* m_string_hash() {
     cog_push(cog_box_int(_string_hash(cog_pop(), 14695981039346656037ULL)));
     return NULL;
 }
-cog_object_method ome_string_hash = {&ot_string, COG_M_HASH, m_string_hash};
+cog_object_method ome_string_hash = {&cog_ot_string, COG_M_HASH, m_string_hash};
 
 cog_object* cog_make_character(char c) {
     // a character is just a one character string
@@ -1037,8 +1037,8 @@ int cog_strcmp(cog_object* str1, cog_object* str2) {
 }
 
 int cog_strncmp(cog_object* str1, cog_object* str2, size_t n) {
-    assert(!str1 || str1->type == &ot_string);
-    assert(!str2 || str2->type == &ot_string);
+    assert(!str1 || str1->type == &cog_ot_string);
+    assert(!str2 || str2->type == &cog_ot_string);
     int i1 = 0, i2 = 0;
     while (str1 && str2 && n > 0) {
         char c1 = str1->as_chars[i1];
@@ -1063,8 +1063,8 @@ int cog_strncmp(cog_object* str1, cog_object* str2, size_t n) {
 }
 
 int cog_strcasecmp(cog_object* str1, cog_object* str2) {
-    assert(str1->type == &ot_string);
-    assert(str2->type == &ot_string);
+    assert(str1->type == &cog_ot_string);
+    assert(str2->type == &cog_ot_string);
     int i1 = 0, i2 = 0;
     while (str1 && str2) {
         char d = tolower(str1->as_chars[i1]) - tolower(str2->as_chars[i2]);
@@ -1085,7 +1085,7 @@ int cog_strcasecmp(cog_object* str1, cog_object* str2) {
 }
 
 int cog_strcmp_c(cog_object* str1, const char* const str2) {
-    assert(str1->type == &ot_string);
+    assert(str1->type == &cog_ot_string);
     int i1 = 0;
     const char* p = str2;
     while (str1 && *p) {
@@ -1103,7 +1103,7 @@ int cog_strcmp_c(cog_object* str1, const char* const str2) {
 }
 
 int cog_strcasecmp_c(cog_object* str1, const char* const str2) {
-    assert(str1->type == &ot_string);
+    assert(str1->type == &cog_ot_string);
     int i1 = 0;
     const char* p = str2;
     while (str1 && *p) {
@@ -1175,7 +1175,7 @@ cog_object* cog_iostring_get_contents(cog_object* stream) {
 
 static cog_object* m_iostring_write() {
     cog_object* stream = cog_pop();
-    cog_object* buf = cog_expect_type_fatal(cog_pop(), &ot_string);
+    cog_object* buf = cog_expect_type_fatal(cog_pop(), &cog_ot_string);
     if (cog_strlen(stream->next->data) > 0) {
         cog_push(cog_string("can't write until ungets stack is empty"));
         return cog_error();
@@ -1220,7 +1220,7 @@ cog_object_method ome_iostring_getch = {&ot_iostring, COG_SM_GETCH, m_iostring_g
 
 cog_object* m_iostring_ungets() {
     cog_object* stream = cog_pop();
-    cog_object* buf = cog_expect_type_fatal(cog_pop(), &ot_string);
+    cog_object* buf = cog_expect_type_fatal(cog_pop(), &cog_ot_string);
     size_t len = cog_strlen(buf);
     for (size_t iplus1 = len; iplus1 > 0; iplus1--) {
         cog_string_prepend_byte(&stream->next->data, cog_nthchar(buf, iplus1 - 1));
@@ -1291,7 +1291,7 @@ cog_object* m_closure_run() {
     cog_object* cookie = cog_pop();
     bool should_push_scope = true;
     if (cookie) {
-        should_push_scope = cog_expect_type_fatal(cookie, &ot_bool)->as_int;
+        should_push_scope = cog_expect_type_fatal(cookie, &cog_ot_bool)->as_int;
     }
     // push scope teardown command
     if (should_push_scope) cog_run_next(cog_make_identifier_c("[[Closure::RestoreCallerScope]]"), cog_on_exit(), COG_GLOBALS.scopes);
@@ -1482,9 +1482,9 @@ cog_object* fn_parser_handle_token() {
     cog_modfunc* curr_func = curr_mod->table[index->as_int];
     if (!curr_func) goto nextmod;
     if (curr_func->when != COG_PARSE_TOKEN_HANDLER) goto nextfun;
-    if (curr_func->name && buffer->type == &ot_string && cog_strcasecmp_c(buffer, curr_func->name))
+    if (curr_func->name && buffer->type == &cog_ot_string && cog_strcasecmp_c(buffer, curr_func->name))
         goto nextfun;
-    if (curr_func->name && buffer->type != &ot_string) goto nextfun;
+    if (curr_func->name && buffer->type != &cog_ot_string) goto nextfun;
 
     cog_object* cookie2 = cog_make_obj(NULL);
     cookie2->data = buffer;
@@ -1493,7 +1493,7 @@ cog_object* fn_parser_handle_token() {
     cog_object* res = curr_func->fun();
     if (cog_same_identifiers(res, cog_not_implemented())) {
         cog_pop();
-        if (buffer->type == &ot_string && cog_strlen(buffer) == 0) {
+        if (buffer->type == &cog_ot_string && cog_strlen(buffer) == 0) {
             // clearing buffer == no token
             // so try again
             run_nextitem_next(stream, cog_emptystring());
@@ -1586,7 +1586,7 @@ cog_object* fn_parser_nextitem() {
     return NULL;
 
     end_of_token:
-    if (cog_strlen(buffer) == 0 && curr_char->type == &ot_string) buffer = curr_char;
+    if (cog_strlen(buffer) == 0 && curr_char->type == &cog_ot_string) buffer = curr_char;
     else if (ch != EOF) cog_ungetch(stream, ch);
     // handle current token
     if (cog_strlen(buffer) == 0) {
@@ -1610,7 +1610,7 @@ cog_modfunc fne_parser_nextitem = {
 cog_object* fn_parser_rule_special_chars() {
     cog_object* cookie = cog_pop();
     cog_object* ch = cookie->next->data;
-    if (ch->type == &ot_string) {
+    if (ch->type == &cog_ot_string) {
         char ch = cog_nthchar(cookie->next->data, 0);
         if (isspace(ch)) return NULL;
         if (strchr("([{\"~;", ch)) return NULL;
@@ -1629,7 +1629,7 @@ cog_modfunc fne_parser_rule_special_chars = {
 cog_object* fn_parser_rule_break_chars() {
     cog_object* cookie = cog_pop();
     cog_object* ch = cookie->next->data;
-    if (cookie->next->data->type == &ot_string) {
+    if (cookie->next->data->type == &cog_ot_string) {
         char ch = cog_nthchar(cookie->next->data, 0);
         if (strchr("\\)]}", ch)) return NULL;
     }
@@ -1646,7 +1646,7 @@ cog_modfunc fne_parser_rule_break_chars = {
 cog_object* fn_parser_ignore_whitespace() {
     cog_object* cookie = cog_pop();
     cog_object* s = cookie->data;
-    if (s->type == &ot_string) {
+    if (s->type == &cog_ot_string) {
         size_t len = cog_strlen(s);
         for (size_t i = 0; i < len; i++) {
             if (!isspace(cog_nthchar(s, i))) {
@@ -1672,7 +1672,7 @@ cog_object* fn_parser_handle_int() {
     char buffer[32];
     cog_object* cookie = cog_pop();
     cog_object* s = cookie->data;
-    if (s->type == &ot_string) {
+    if (s->type == &cog_ot_string) {
         cog_string_to_cstring(s, buffer, sizeof(buffer));
         int64_t i;
         int len = 0;
@@ -1696,7 +1696,7 @@ cog_object* fn_parser_handle_float() {
     char buffer[32];
     cog_object* cookie = cog_pop();
     cog_object* s = cookie->data;
-    if (s->type == &ot_string) {
+    if (s->type == &cog_ot_string) {
         cog_string_to_cstring(s, buffer, sizeof(buffer));
         double i;
         int len = 0;
@@ -1747,7 +1747,7 @@ bool all_valid_for_ident(cog_object* string) {
 cog_object* fn_parser_handle_symbols() {
     cog_object* cookie = cog_pop();
     cog_object* s = cookie->data;
-    if (s->type == &ot_string) {
+    if (s->type == &cog_ot_string) {
         char first = cog_nthchar(s, 0);
         if (first == '\\') {
             cog_string_delete_char(&s, 0);
@@ -1773,7 +1773,7 @@ cog_modfunc fne_parser_handle_symbols = {
 cog_object* fn_parser_discard_informal_syntax() {
     cog_object* cookie = cog_pop();
     cog_object* s = cookie->data;
-    if (s->type == &ot_string) {
+    if (s->type == &cog_ot_string) {
         char first = cog_nthchar(s, 0);
         if (tolower(first) == first && isalpha(first)) {
             // clear string to signal there is no token here
@@ -1795,7 +1795,7 @@ cog_modfunc fne_parser_discard_informal_syntax = {
 cog_object* fn_parser_handle_identifiers() {
     cog_object* cookie = cog_pop();
     cog_object* s = cookie->data;
-    if (s->type == &ot_string) {
+    if (s->type == &cog_ot_string) {
         char first = cog_nthchar(s, 0);
         if (!isalpha(first) || (toupper(first) == first && all_valid_for_ident(s))) {
             // defined identifier
@@ -2017,7 +2017,7 @@ cog_object* fn_parser_transform_def_or_let() {
     cog_object* cookie = cog_pop();
     bool is_def = cookie->as_int;
     cog_object* what = cog_pop();
-    if (!what || what->type != &ot_identifier) goto error;
+    if (!what || what->type != &cog_ot_identifier) goto error;
     cog_push(make_def_or_let_special_obj(what, is_def));
     return NULL;
 
@@ -2056,7 +2056,7 @@ void handle_item(cog_object* ijp) {
 cog_object* fn_parser_handle_semicolon() {
     cog_object* cookie = cog_pop();
     cog_object* s = cookie->data;
-    if (s->type == &ot_string) {
+    if (s->type == &cog_ot_string) {
         s->stored_chars = 0;
         s->next = NULL;
     }
@@ -2078,9 +2078,9 @@ cog_object* fn_parser_parse_block_loop() {
     cog_object* ijp = cog_pop();
     if (!ijp || ijp->type != &ot_parser_sentinel) goto next;
     if (ijp->next->type == &ot_eof && stopwhen->type == &ot_eof) goto stop;
-    if (ijp->next->type == &ot_string && stopwhen->type == &ot_string && !cog_strcmp(ijp->next, stopwhen)) goto stop;
+    if (ijp->next->type == &cog_ot_string && stopwhen->type == &cog_ot_string && !cog_strcmp(ijp->next, stopwhen)) goto stop;
     // else it is an error
-    cog_push(ijp->next->type == &ot_string ? cog_sprintf("unexpected %O", ijp->next): cog_string("unexpected EOF"));
+    cog_push(ijp->next->type == &cog_ot_string ? cog_sprintf("unexpected %O", ijp->next): cog_string("unexpected EOF"));
     return cog_error();
 
     next:
@@ -2106,7 +2106,7 @@ cog_object* fn_parse() {
         cog_push(NULL);
         return NULL;
     }
-    if (stream->type == &ot_string) {
+    if (stream->type == &cog_ot_string) {
         stream = cog_iostring_wrap(stream);
     }
     cog_object* cookie2 = stream;
@@ -2144,12 +2144,12 @@ cog_modfunc fne_empty = {
     cog_object* a = cog_pop(); \
     cog_object* b = cog_pop(); \
     if (a && b) { \
-        if ((a->type == &ot_int || a->type == &ot_float) && (b->type == &ot_int || b->type == &ot_float)) { \
-            if (a->type == &ot_int && b->type == &ot_int) { \
+        if ((a->type == &cog_ot_int || a->type == &cog_ot_float) && (b->type == &cog_ot_int || b->type == &cog_ot_float)) { \
+            if (a->type == &cog_ot_int && b->type == &cog_ot_int) { \
                 cog_push(cog_box_##both_ints_type((both_ints_cast b->as_int) op (both_ints_cast a->as_int))); \
             } else { \
-                double a_val = (a->type == &ot_int) ? (double)a->as_int : a->as_float; \
-                double b_val = (b->type == &ot_int) ? (double)b->as_int : b->as_float; \
+                double a_val = (a->type == &cog_ot_int) ? (double)a->as_int : a->as_float; \
+                double b_val = (b->type == &cog_ot_int) ? (double)b->as_int : b->as_float; \
                 cog_push(cog_box_##either_float_type(b_val op a_val)); \
             } \
             return NULL; \
@@ -2195,17 +2195,17 @@ cog_object* fn_eq() {
     bool result = false;
     if (a && b) {
         if (a->type == b->type) {
-            if (a->type == &ot_int) {
+            if (a->type == &cog_ot_int) {
                 result = (a->as_int == b->as_int);
-            } else if (a->type == &ot_float) {
+            } else if (a->type == &cog_ot_float) {
                 result = (a->as_float == b->as_float);
-            } else if (a->type == &ot_bool) {
+            } else if (a->type == &cog_ot_bool) {
                 result = (a->as_int == b->as_int);
-            } else if (a->type == &ot_identifier) {
+            } else if (a->type == &cog_ot_identifier) {
                 result = cog_same_identifiers(a, b);
-            } else if (a->type == &ot_symbol) {
+            } else if (a->type == &cog_ot_symbol) {
                 result = cog_same_identifiers(a->next, b->next);
-            } else if (a->type == &ot_string) {
+            } else if (a->type == &cog_ot_string) {
                 result = (cog_strcmp(a, b) == 0);
             } else if (a->type == NULL) {
                 cog_push(b);
@@ -2215,9 +2215,9 @@ cog_object* fn_eq() {
             } else {
                 result = (a == b);
             }
-        } else if (a->type == &ot_int && b->type == &ot_float) {
+        } else if (a->type == &cog_ot_int && b->type == &cog_ot_float) {
             result = (a->as_int == b->as_float);
-        } else if (a->type == &ot_float && b->type == &ot_int) {
+        } else if (a->type == &cog_ot_float && b->type == &cog_ot_int) {
             result = (a->as_float == b->as_int);
         } else {
             result = false;
@@ -2237,7 +2237,7 @@ cog_object* fn_if() {
     cog_object* cond = cog_pop();
     cog_object* iftrue = cog_pop();
     cog_object* iffalse = cog_pop();
-    COG_ENSURE_TYPE(cond, &ot_bool);
+    COG_ENSURE_TYPE(cond, &cog_ot_bool);
     cog_push(cond->as_int ? iftrue : iffalse);
     return NULL;
 }
@@ -2246,7 +2246,7 @@ cog_modfunc fne_if = {"If", COG_FUNC, fn_if, "If cond is true, return iftrue, el
 cog_object* fn_print() {
     COG_ENSURE_N_ITEMS(1);
     cog_object* obj = cog_pop();
-    cog_printf(obj && obj->type == &ot_string ? "%#O\n" : "%O\n", obj);
+    cog_printf(obj && obj->type == &cog_ot_string ? "%#O\n" : "%O\n", obj);
     return NULL;
 }
 cog_modfunc fne_print = {"Print", COG_FUNC, fn_print, "Print an object to stdout, with a newline."};
@@ -2254,7 +2254,7 @@ cog_modfunc fne_print = {"Print", COG_FUNC, fn_print, "Print an object to stdout
 cog_object* fn_put() {
     COG_ENSURE_N_ITEMS(1);
     cog_object* obj = cog_pop();
-    cog_printf(obj && obj->type == &ot_string ? "%#O" : "%O", obj);
+    cog_printf(obj && obj->type == &cog_ot_string ? "%#O" : "%O", obj);
     return NULL;
 }
 cog_modfunc fne_put = {"Put", COG_FUNC, fn_put, "Print an object to stdout, without a newline."};
@@ -2290,7 +2290,7 @@ cog_object* fn_modulo() {
     COG_ENSURE_N_ITEMS(2);
     cog_object* a = cog_pop();
     cog_object* b = cog_pop();
-    if (a && b && a->type == &ot_int && b->type == &ot_int) {
+    if (a && b && a->type == &cog_ot_int && b->type == &cog_ot_int) {
         cog_push(cog_box_int(b->as_int % a->as_int));
     } else {
         double a_val, b_val;
@@ -2316,8 +2316,8 @@ cog_modfunc fne_sqrt = {"Sqrt", COG_FUNC, fn_sqrt, "Return the square root of a 
     COG_ENSURE_N_ITEMS(2); \
     cog_object* a = cog_pop(); \
     cog_object* b = cog_pop(); \
-    COG_ENSURE_TYPE(a, &ot_bool); \
-    COG_ENSURE_TYPE(b, &ot_bool); \
+    COG_ENSURE_TYPE(a, &cog_ot_bool); \
+    COG_ENSURE_TYPE(b, &cog_ot_bool); \
     cog_push(cog_box_bool(a->as_int op b->as_int)); \
     return NULL; \
 
@@ -2331,7 +2331,7 @@ cog_modfunc fne_xor = {"Xor", COG_FUNC, fn_xor, "Return the logical XOR of two b
 cog_object* fn_not() {
     COG_ENSURE_N_ITEMS(1);
     cog_object* a = cog_pop();
-    COG_ENSURE_TYPE(a, &ot_bool);
+    COG_ENSURE_TYPE(a, &cog_ot_bool);
     cog_push(cog_box_bool(!a->as_int));
     return NULL;
 }
@@ -2340,7 +2340,7 @@ cog_modfunc fne_not = {"Not", COG_FUNC, fn_not, "Return the logical NOT of a boo
 cog_object* fn_is_number() {
     COG_ENSURE_N_ITEMS(1);
     cog_object* a = cog_pop();
-    cog_push(cog_box_bool(a->type == &ot_int || a->type == &ot_float));
+    cog_push(cog_box_bool(a->type == &cog_ot_int || a->type == &cog_ot_float));
     return NULL;
 }
 cog_modfunc fne_is_number = {"Number?", COG_FUNC, fn_is_number, "Return true if the object is a number (integer or float)."};
@@ -2351,12 +2351,12 @@ cog_modfunc fne_is_number = {"Number?", COG_FUNC, fn_is_number, "Return true if 
     cog_push(cog_box_bool(f a->type == typeobj)); \
     return NULL;
 
-cog_object* fn_is_symbol() { _TYPEP_BODY(,&ot_symbol) }
-cog_object* fn_is_integer() { _TYPEP_BODY(,&ot_int || (a->type == &ot_float && a->as_float == floor(a->as_float))) }
+cog_object* fn_is_symbol() { _TYPEP_BODY(,&cog_ot_symbol) }
+cog_object* fn_is_integer() { _TYPEP_BODY(,&cog_ot_int || (a->type == &cog_ot_float && a->as_float == floor(a->as_float))) }
 cog_object* fn_is_list() { _TYPEP_BODY(!a ||,NULL) }
-cog_object* fn_is_string() { _TYPEP_BODY(,&ot_string) }
+cog_object* fn_is_string() { _TYPEP_BODY(,&cog_ot_string) }
 cog_object* fn_is_block() { _TYPEP_BODY(,&ot_closure) }
-cog_object* fn_is_boolean() { _TYPEP_BODY(,&ot_bool) }
+cog_object* fn_is_boolean() { _TYPEP_BODY(,&cog_ot_bool) }
 cog_modfunc fne_is_symbol = {"Symbol?", COG_FUNC, fn_is_symbol, "Return true if the object is a symbol."};
 cog_modfunc fne_is_integer = {"Integer?", COG_FUNC, fn_is_integer, "Return true if the object is an integer."};
 cog_modfunc fne_is_list = {"List?", COG_FUNC, fn_is_list, "Return true if the object is a list."};
@@ -2367,9 +2367,9 @@ cog_modfunc fne_is_boolean = {"Boolean?", COG_FUNC, fn_is_boolean, "Return true 
 cog_object* fn_is_zero() {
     COG_ENSURE_N_ITEMS(1);
     cog_object* a = cog_pop();
-    if (a->type == &ot_int) {
+    if (a->type == &cog_ot_int) {
         cog_push(cog_box_bool(a->as_int == 0));
-    } else if (a->type == &ot_float) {
+    } else if (a->type == &cog_ot_float) {
         cog_push(cog_box_bool(a->as_float == 0));
     } else {
         cog_push(cog_box_bool(false));
@@ -2394,11 +2394,11 @@ cog_modfunc fne_is_io = {"IO?", COG_FUNC, fn_is_io, "Return true if the object i
     if (!a || a->type != texpr) COG_ENSURE_TYPE(a, typeobj); \
     cog_push(a); \
     return NULL;
-cog_object* fn_assert_number() { _TYPE_ASSERTION_BODY(&ot_float, &ot_int || a->type == &ot_float) }
-cog_object* fn_assert_symbol() { _TYPE_ASSERTION_BODY(&ot_symbol, &ot_symbol) }
-cog_object* fn_assert_string() { _TYPE_ASSERTION_BODY(&ot_string, &ot_string) }
+cog_object* fn_assert_number() { _TYPE_ASSERTION_BODY(&cog_ot_float, &cog_ot_int || a->type == &cog_ot_float) }
+cog_object* fn_assert_symbol() { _TYPE_ASSERTION_BODY(&cog_ot_symbol, &cog_ot_symbol) }
+cog_object* fn_assert_string() { _TYPE_ASSERTION_BODY(&cog_ot_string, &cog_ot_string) }
 cog_object* fn_assert_block() { _TYPE_ASSERTION_BODY(&ot_closure, &ot_closure) }
-cog_object* fn_assert_boolean() { _TYPE_ASSERTION_BODY(&ot_bool, &ot_bool) }
+cog_object* fn_assert_boolean() { _TYPE_ASSERTION_BODY(&cog_ot_bool, &cog_ot_bool) }
 cog_modfunc fne_assert_number = {"Number!", COG_FUNC, fn_assert_number, "Assert that the object is a number."};
 cog_modfunc fne_assert_symbol = {"Symbol!", COG_FUNC, fn_assert_symbol, "Assert that the object is a symbol."};
 cog_modfunc fne_assert_string = {"String!", COG_FUNC, fn_assert_string, "Assert that the object is a string."};
@@ -2431,7 +2431,7 @@ cog_modfunc fne_assert_io = {"IO!", COG_FUNC, fn_assert_io, "Assert that the obj
 cog_object* fn_first() {
     COG_ENSURE_N_ITEMS(1);
     cog_object* a = cog_pop();
-    if (a && a->type == &ot_string) {
+    if (a && a->type == &cog_ot_string) {
         if (cog_strlen(a) == 0) COG_RETURN_ERROR(cog_string("tried to get First of an empty string"));
         cog_push(cog_make_character(cog_nthchar(a, 0)));
         return NULL;
@@ -2446,7 +2446,7 @@ cog_modfunc fne_first = {"First", COG_FUNC, fn_first, "Return the first element 
 cog_object* fn_rest() {
     COG_ENSURE_N_ITEMS(1);
     cog_object* a = cog_pop();
-    if (a && a->type == &ot_string) {
+    if (a && a->type == &cog_ot_string) {
         if (cog_strlen(a) == 0) COG_RETURN_ERROR(cog_string("tried to get Rest of an empty string"));
         cog_object* dup = cog_strdup(a);
         cog_string_delete_char(&dup, 0);
@@ -2474,7 +2474,7 @@ cog_modfunc fne_push = {"Push", COG_FUNC, fn_push, "Push an item onto a list."};
 cog_object* fn_is_empty() {
     COG_ENSURE_N_ITEMS(1);
     cog_object* a = cog_pop();
-    if (a && a->type == &ot_string) {
+    if (a && a->type == &cog_ot_string) {
         cog_push(cog_box_bool(cog_strlen(a) == 0));
     } else {
         COG_ENSURE_LIST(a);
@@ -2488,7 +2488,7 @@ cog_object* fn_append() {
     COG_ENSURE_N_ITEMS(2);
     cog_object* a = cog_pop();
     cog_object* b = cog_pop();
-    if (a && b && a->type == &ot_string && b->type == &ot_string) {
+    if (a && b && a->type == &cog_ot_string && b->type == &cog_ot_string) {
         cog_object* ba = cog_strappend(b, a);
         // char cha = cog_nthchar(a, 0);
         // char chb = cog_nthchar(ba, cog_strlen(b));
@@ -2510,9 +2510,9 @@ cog_object* fn_substring() {
     cog_object* end = cog_pop();
     cog_object* start = cog_pop();
     cog_object* a = cog_pop();
-    COG_ENSURE_TYPE(a, &ot_string);
-    COG_ENSURE_TYPE(start, &ot_int);
-    COG_ENSURE_TYPE(end, &ot_int);
+    COG_ENSURE_TYPE(a, &cog_ot_string);
+    COG_ENSURE_TYPE(start, &cog_ot_int);
+    COG_ENSURE_TYPE(end, &cog_ot_int);
     cog_push(cog_substring(a, start->as_int, end->as_int));
     return NULL;
 }
@@ -2521,7 +2521,7 @@ cog_modfunc fne_substring = {"Substring", COG_FUNC, fn_substring, "Return a subs
 cog_object* fn_ordinal() {
     COG_ENSURE_N_ITEMS(1);
     cog_object* a = cog_pop();
-    COG_ENSURE_TYPE(a, &ot_string);
+    COG_ENSURE_TYPE(a, &cog_ot_string);
     char b[MB_CUR_MAX + 1];
     cog_string_to_cstring(a, b, MB_CUR_MAX);
     if (!b[0])
@@ -2537,11 +2537,11 @@ cog_modfunc fne_ordinal = {"Ordinal", COG_FUNC, fn_ordinal, "Return the ordinal 
 cog_object* fn_character() {
     COG_ENSURE_N_ITEMS(1);
     cog_object* a = cog_pop();
-    if (!a || a->type != &ot_int) {
-        if (!a || a->type != &ot_float || floor(a->as_float) != a->as_float)
-            COG_ENSURE_TYPE(a, &ot_int);
+    if (!a || a->type != &cog_ot_int) {
+        if (!a || a->type != &cog_ot_float || floor(a->as_float) != a->as_float)
+            COG_ENSURE_TYPE(a, &cog_ot_int);
     }
-    wchar_t ord = (wchar_t)(a->type == &ot_int ? a->as_int : (int64_t)a->as_float);
+    wchar_t ord = (wchar_t)(a->type == &cog_ot_int ? a->as_int : (int64_t)a->as_float);
     char* old_locale = setlocale(LC_ALL, "en_US.UTF-8");
     mbtowc(NULL, NULL, 0); // reset the conversion state
     char b[MB_CUR_MAX+1];
@@ -2559,8 +2559,8 @@ cog_object* fn_split() {
     COG_ENSURE_N_ITEMS(2);
     cog_object* sep = cog_pop();
     cog_object* a = cog_pop();
-    COG_ENSURE_TYPE(a, &ot_string);
-    COG_ENSURE_TYPE(sep, &ot_string);
+    COG_ENSURE_TYPE(a, &cog_ot_string);
+    COG_ENSURE_TYPE(sep, &cog_ot_string);
     cog_object* list = NULL;
     size_t startpos = 0;
     size_t seplen = cog_strlen(sep);
@@ -2583,7 +2583,7 @@ cog_modfunc fne_split = {"Split", COG_FUNC, fn_split, "Split a string into a lis
 #define _UPPERLOWERBODY(ulfunc) \
     COG_ENSURE_N_ITEMS(1); \
     cog_object* str = cog_pop(); \
-    COG_ENSURE_TYPE(str, &ot_string); \
+    COG_ENSURE_TYPE(str, &cog_ot_string); \
     char* old_locale = setlocale(LC_ALL, "en_US.UTF-8"); \
     cog_object* result = cog_emptystring(); \
     cog_object* tail = result; \
@@ -2627,11 +2627,11 @@ cog_modfunc fne_uppercase = {"Uppercase", COG_FUNC, fn_uppercase, "Converts a st
 #define _ONEFUNNUMBODY(ffn, ifn) \
     COG_ENSURE_N_ITEMS(1); \
     cog_object* a = cog_pop(); \
-    if (a && a->type == &ot_int) { \
+    if (a && a->type == &cog_ot_int) { \
         cog_push(cog_box_int(ifn(a->as_int))); \
         return NULL; \
     } \
-    COG_ENSURE_TYPE(a, &ot_float); \
+    COG_ENSURE_TYPE(a, &cog_ot_float); \
     cog_push(cog_box_float(ffn(a->as_float))); \
     return NULL;
 
@@ -2647,7 +2647,7 @@ cog_modfunc fne_abs = {"Abs", COG_FUNC, fn_abs, "Return the absolute value of a 
 cog_object* fn_error() {
     COG_ENSURE_N_ITEMS(1);
     cog_object* a = cog_pop();
-    COG_ENSURE_TYPE(a, &ot_string);
+    COG_ENSURE_TYPE(a, &cog_ot_string);
     cog_push(a);
     return cog_error();
 }
@@ -2656,7 +2656,7 @@ cog_modfunc fne_error = {"Error", COG_FUNC, fn_error, "Raise an error with a mes
 cog_object* fn_number() {
     COG_ENSURE_N_ITEMS(1);
     cog_object* a = cog_pop();
-    COG_ENSURE_TYPE(a, &ot_string);
+    COG_ENSURE_TYPE(a, &cog_ot_string);
     char b[64];
     cog_string_to_cstring(a, b, sizeof(b));
     int64_t i = 0;
@@ -2794,7 +2794,7 @@ cog_modfunc fne_sinh = {"Sinh", COG_FUNC, fn_sinh, "Return the hyperbolic sine o
 cog_modfunc fne_cosh = {"Cosh", COG_FUNC, fn_cosh, "Return the hyperbolic cosine of the angle, which is expressed in radians."};
 cog_modfunc fne_tanh = {"Tanh", COG_FUNC, fn_tanh, "Return the hyperbolic tangent of the angle, which is expressed in radians."};
 
-cog_obj_type ot_continuation = {"Continuation", cog_walk_both, NULL};
+cog_obj_type cog_ot_continuation = {"Continuation", cog_walk_both, NULL};
 
 // MARK: BUILTINS TABLES
 
@@ -2964,12 +2964,12 @@ static cog_object_method* builtin_objfunc_table[] = {
 static cog_obj_type* builtin_types[] = {
     &cog_ot_pointer,
     &cog_ot_owned_pointer,
-    &ot_int,
-    &ot_bool,
-    &ot_float,
-    &ot_identifier,
-    &ot_symbol,
-    &ot_string,
+    &cog_ot_int,
+    &cog_ot_bool,
+    &cog_ot_float,
+    &cog_ot_identifier,
+    &cog_ot_symbol,
+    &cog_ot_string,
     &ot_iostring,
     &ot_bfunction,
     &ot_parser_sentinel,
@@ -2979,7 +2979,7 @@ static cog_obj_type* builtin_types[] = {
     &ot_def_or_let_special,
     &ot_var,
     &ot_box,
-    &ot_continuation,
+    &cog_ot_continuation,
     NULL
 };
 

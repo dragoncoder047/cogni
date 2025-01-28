@@ -1,3 +1,1 @@
-
-Print List ("123 áæćde" Lowercase "123 ÁÆĆdE");
-Print List ("123 ♥ ÆABCDE" Uppercase "123 ♥ ÆaBcde");
+Print Open \write "test.txt";
