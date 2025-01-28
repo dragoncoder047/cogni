@@ -2708,6 +2708,40 @@ cog_object* fn_clear() {
 }
 cog_modfunc fne_clear = {"Clear", COG_FUNC, fn_clear, "Empty everything from the stack."};
 
+cog_obj_type ot_box = {"Box", cog_walk_only_next, NULL};
+
+static cog_object* _box(cog_object* what) {
+    cog_object* b = cog_make_obj(&ot_box);
+    b->next = what;
+    return b;
+}
+
+cog_object* fn_box() {
+    COG_ENSURE_N_ITEMS(1);
+    cog_push(_box(cog_pop()));
+    return NULL;
+}
+cog_modfunc fne_box = {"Box", COG_FUNC, fn_box, "Puts the object into a box, which is a mutable pointer to it."};
+
+cog_object* fn_unbox() {
+    COG_ENSURE_N_ITEMS(1);
+    cog_object* the_box = cog_pop();
+    COG_ENSURE_TYPE(the_box, &ot_box);
+    cog_push(the_box->next);
+    return NULL;
+}
+cog_modfunc fne_unbox = {"Unbox", COG_FUNC, fn_unbox, "Reverse of Box. Pulls the pointed-to object out of the mutable pointer."};
+
+cog_object* fn_set() {
+    COG_ENSURE_N_ITEMS(2);
+    cog_object* the_box = cog_pop();
+    cog_object* the_item = cog_pop();
+    COG_ENSURE_TYPE(the_box, &ot_box);
+    the_box->next = the_item;
+    return NULL;
+}
+cog_modfunc fne_set = {"Set", COG_FUNC, fn_set, "Mutates a box in-place by changing the object it points to."};
+
 // MARK: BUILTINS TABLES
 
 static cog_modfunc* builtin_modfunc_table[] = {
@@ -2796,6 +2830,10 @@ static cog_modfunc* builtin_modfunc_table[] = {
     &fne_lowercase,
     &fne_uppercase,
     // list functions
+    // box functions
+    &fne_box,
+    &fne_unbox,
+    &fne_set,
     // conversion functions
     &fne_number,
     &fne_show,
@@ -2865,6 +2903,7 @@ static cog_obj_type* builtin_types[] = {
     &ot_closure,
     &ot_def_or_let_special,
     &ot_var,
+    &ot_box,
     NULL
 };
 

@@ -622,7 +622,7 @@ extern cog_obj_type cog_ot_owned_pointer;
     do { \
         if ((obj) == NULL || (obj)->type != typeobj) { \
             COG_RETURN_ERROR(cog_sprintf("Expected %s, but got %s", \
-                (typeobj) ? (typeobj)->typename : "NULL", (obj) ? (obj)->type->typename : "NULL")); \
+                (typeobj) ? (typeobj)->typename : "NULL", (obj) && (obj)->type ? (obj)->type->typename : "NULL")); \
         } \
     } while (0)
 
