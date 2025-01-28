@@ -470,22 +470,20 @@ cog_object* cog_mainloop(cog_object* status) {
         cog_object* cookie = cmd->next->next;
         if (which == NULL) {
             fprintf(stderr, "got NULL as command in command queue\n");
-            print_backtrace();
             abort();
         }
         bool is_normal_exec = cog_same_identifiers(status, when);
-        if (is_normal_exec || cog_same_identifiers(cog_on_exit(), when)) {
+        if (is_normal_exec
+                || cog_same_identifiers(cog_on_exit(), when)
+                || cog_same_identifiers(cog_on_enter(), when)) {
             cog_push(cookie);
             cog_object* new_status = cog_run_well_known(which, COG_M_EXEC);
-            if (cog_same_identifiers(status, cog_not_implemented())) {
-                if (!is_normal_exec) {
-                    fprintf(stderr, "Double fault in exit handler\n");
-                    abort();
-                }
+            if (cog_same_identifiers(new_status, cog_not_implemented())) {
                 cog_pop();
                 cog_push(cog_sprintf("Can't run %O", which));
                 new_status = cog_error();
             }
+            if (is_normal_exec) status = new_status;
             // maybe do a GC
             if (COG_GLOBALS.alloc_chunks > next_gc) {
                 // protect status in case it is nonstandard
@@ -493,7 +491,6 @@ cog_object* cog_mainloop(cog_object* status) {
                 gc();
                 next_gc = COG_GLOBALS.alloc_chunks * 2;
             }
-            if (is_normal_exec) status = new_status;
         }
     }
     return status;
@@ -527,7 +524,7 @@ cog_object* int_printself() {
     return NULL;
 }
 cog_object_method ome_int_show = {&cog_ot_int, COG_M_SHOW, int_printself};
-cog_object_method ome_int_run = {&cog_ot_int, COG_M_EXEC, cog_obj_push_self};
+cog_object_method ome_int_exec = {&cog_ot_int, COG_M_EXEC, cog_obj_push_self};
 
 static cog_object* m_int_hash() {
     // Integers hash to themselves
@@ -554,7 +551,7 @@ cog_object* bool_printself() {
     return NULL;
 }
 cog_object_method ome_bool_show = {&cog_ot_bool, COG_M_SHOW, bool_printself};
-cog_object_method ome_bool_run = {&cog_ot_bool, COG_M_EXEC, cog_obj_push_self};
+cog_object_method ome_bool_exec = {&cog_ot_bool, COG_M_EXEC, cog_obj_push_self};
 
 static cog_object* m_bool_hash() {
     cog_object* num = cog_pop();
@@ -584,7 +581,7 @@ cog_object* float_printself() {
     return NULL;
 }
 cog_object_method ome_float_show = {&cog_ot_float, COG_M_SHOW, float_printself};
-cog_object_method ome_float_run = {&cog_ot_float, COG_M_EXEC, cog_obj_push_self};
+cog_object_method ome_float_exec = {&cog_ot_float, COG_M_EXEC, cog_obj_push_self};
 
 static cog_object* m_float_hash() {
     cog_object* num = cog_pop();
@@ -759,7 +756,7 @@ cog_object* m_run_identifier() {
         }
     }
 }
-cog_object_method ome_identifier_run = {&cog_ot_identifier, COG_M_EXEC, m_run_identifier};
+cog_object_method ome_identifier_exec = {&cog_ot_identifier, COG_M_EXEC, m_run_identifier};
 
 static int64_t _string_hash(cog_object*, int64_t);
 
@@ -781,7 +778,7 @@ bool cog_same_identifiers(cog_object* s1, cog_object* s2) {
 
 cog_obj_type cog_ot_symbol = {"Symbol", cog_walk_only_next, NULL};
 
-cog_object_method ome_symbol_run = {&cog_ot_symbol, COG_M_EXEC, cog_obj_push_self};
+cog_object_method ome_symbol_exec = {&cog_ot_symbol, COG_M_EXEC, cog_obj_push_self};
 
 cog_object* cog_sym(cog_object* i) {
     cog_object* s = cog_make_obj(&cog_ot_symbol);
@@ -999,7 +996,7 @@ cog_object* m_string_show() {
     return NULL;
 }
 cog_object_method ome_string_show = {&cog_ot_string, COG_M_SHOW, m_string_show};
-cog_object_method ome_string_run = {&cog_ot_string, COG_M_EXEC, cog_obj_push_self};
+cog_object_method ome_string_exec = {&cog_ot_string, COG_M_EXEC, cog_obj_push_self};
 
 static int64_t _string_hash(cog_object* str, int64_t hash) {
     while (str) {
@@ -1252,14 +1249,14 @@ cog_object* cog_make_bfunction(cog_modfunc* func) {
     return obj;
 }
 
-cog_object* m_bfunction_run() {
+cog_object* m_bfunction_exec() {
     cog_object* self = cog_pop();
     cog_modfunc* f = self->as_fun;
     if (f->when == COG_FUNC) cog_pop(); // discard cookie
     // jump straight into the function
     return f->fun();
 }
-cog_object_method ome_bfunction_run = {&ot_bfunction, COG_M_EXEC, m_bfunction_run};
+cog_object_method ome_bfunction_exec = {&ot_bfunction, COG_M_EXEC, m_bfunction_exec};
 
 cog_object_method ome_bfunction_hash = {&ot_bfunction, COG_M_HASH, cog_not_implemented};
 
@@ -1284,7 +1281,7 @@ cog_object* cog_make_closure(cog_object* block, cog_object* scopes) {
     return obj;
 }
 
-cog_object* m_closure_run() {
+cog_object* m_closure_exec() {
     // trace();
     // debug_dump_stuff();
     // abort();
@@ -1308,7 +1305,7 @@ cog_object* m_closure_run() {
     if (should_push_scope) cog_push_new_scope();
     return NULL;
 }
-cog_object_method ome_closure_run = {&ot_closure, COG_M_EXEC, m_closure_run};
+cog_object_method ome_closure_exec = {&ot_closure, COG_M_EXEC, m_closure_exec};
 cog_object_method ome_closure_hash = {&ot_closure, COG_M_HASH, cog_not_implemented};
 
 cog_object* fn_closure_restore_scope() {
@@ -1323,13 +1320,13 @@ cog_modfunc fne_closure_restore_scope = {
     NULL,
 };
 
-cog_object* m_block_run() {
+cog_object* m_block_exec() {
     cog_object* self = cog_pop();
     cog_pop(); // ignore cookie
     cog_push(cog_make_closure(self, COG_GLOBALS.scopes));
     return NULL;
 }
-cog_object_method ome_block_run = {&ot_block, COG_M_EXEC, m_block_run};
+cog_object_method ome_block_exec = {&ot_block, COG_M_EXEC, m_block_exec};
 
 cog_object* m_block_show() {
     cog_object* block = cog_pop();
@@ -1980,7 +1977,7 @@ cog_object* cog_make_var(cog_object* what) {
     return obj;
 }
 
-cog_object* m_def_or_let_run() {
+cog_object* m_def_or_let_exec() {
     cog_object* self = cog_pop();
     cog_pop(); // ignore cookie
     bool is_def = self->as_int;
@@ -1990,7 +1987,7 @@ cog_object* m_def_or_let_run() {
     cog_defun(symbol, is_def ? value : cog_make_var(value));
     return NULL;
 }
-cog_object_method ome_def_or_let_run = {&ot_def_or_let_special, COG_M_EXEC, m_def_or_let_run};
+cog_object_method ome_def_or_let_exec = {&ot_def_or_let_special, COG_M_EXEC, m_def_or_let_exec};
 cog_object_method ome_def_or_let_hash = {&ot_def_or_let_special, COG_M_HASH, cog_not_implemented};
 
 cog_object* m_def_or_let_show() {
@@ -2009,7 +2006,7 @@ cog_object* m_var_run_self() {
     cog_push(self->next);
     return NULL;
 }
-cog_object_method ome_var_run = {&ot_var, COG_M_EXEC, m_var_run_self};
+cog_object_method ome_var_exec = {&ot_var, COG_M_EXEC, m_var_run_self};
 cog_object_method ome_var_hash = {&ot_var, COG_M_HASH, cog_not_implemented};
 
 
@@ -2797,6 +2794,44 @@ cog_modfunc fne_tanh = {"Tanh", COG_FUNC, fn_tanh, "Return the hyperbolic tangen
 
 cog_obj_type cog_ot_continuation = {"Continuation", cog_walk_both, NULL};
 
+cog_object* cog_make_continuation() {
+    cog_object* c = cog_make_obj(&cog_ot_continuation);
+    c->data = COG_GLOBALS.stack;
+    c->next = cog_make_obj(NULL);
+    c->next->data = COG_GLOBALS.command_queue;
+    c->next->next = COG_GLOBALS.scopes;
+    return c;
+}
+
+cog_object* m_continuation_exec() {
+    cog_object* self = cog_pop();
+    cog_pop(); // ignore cookie
+    cog_object* contval = cog_pop();
+    cog_object* old_stack = self->data;
+    cog_object* old_command_queue = self->next->data;
+    cog_object* old_scopes = self->next->next;
+    // TODO: get displaced enter and exit handlers and queue them to be run
+    // TODO: this would allow the closure to put the scope pushing in an enter handler
+    // TODO: and that would mean continuations don't have to save it because it gets saved
+    // TODO: on the command queue cookie
+    COG_GLOBALS.stack = old_stack;
+    COG_GLOBALS.command_queue = old_command_queue;
+    COG_GLOBALS.scopes = old_scopes;
+    cog_push(contval);
+    return NULL;
+}
+cog_object_method ome_continuation_exec = {&cog_ot_continuation, COG_M_EXEC, m_continuation_exec};
+
+cog_object* fn_begin() {
+    COG_ENSURE_N_ITEMS(1);
+    cog_object* block = cog_pop();
+    COG_ENSURE_TYPE(block, &ot_closure);
+    cog_push(cog_make_continuation());
+    cog_run_next(block, NULL, NULL);
+    return NULL;
+}
+cog_modfunc fne_begin = {"Begin", COG_FUNC, fn_begin, "Call-with-current-continuation, on a block."};
+
 // MARK: BUILTINS TABLES
 
 static cog_modfunc* builtin_modfunc_table[] = {
@@ -2920,33 +2955,34 @@ static cog_modfunc* builtin_modfunc_table[] = {
     &fne_stop,
     &fne_stack,
     &fne_clear,
+    &fne_begin,
     NULL
 };
 
 static cog_object_method* builtin_objfunc_table[] = {
     &ome_int_show,
-    &ome_int_run,
+    &ome_int_exec,
     &ome_bool_show,
-    &ome_bool_run,
+    &ome_bool_exec,
     &ome_float_show,
-    &ome_float_run,
+    &ome_float_exec,
     &ome_identifier_show,
-    &ome_identifier_run,
+    &ome_identifier_exec,
     &ome_symbol_show,
-    &ome_symbol_run,
+    &ome_symbol_exec,
     &ome_string_show,
-    &ome_string_run,
+    &ome_string_exec,
     &ome_iostring_write,
     &ome_iostring_getch,
     &ome_iostring_ungets,
     &ome_iostring_show,
-    &ome_bfunction_run,
-    &ome_closure_run,
-    &ome_block_run,
+    &ome_bfunction_exec,
+    &ome_closure_exec,
+    &ome_block_exec,
     &ome_block_show,
-    &ome_def_or_let_run,
+    &ome_def_or_let_exec,
     &ome_def_or_let_show,
-    &ome_var_run,
+    &ome_var_exec,
     &ome_int_hash,
     &ome_bool_hash,
     &ome_float_hash,
@@ -2959,6 +2995,7 @@ static cog_object_method* builtin_objfunc_table[] = {
     &ome_block_hash,
     &ome_def_or_let_hash,
     &ome_var_hash,
+    &ome_continuation_exec,
     NULL
 };
 

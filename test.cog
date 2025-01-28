@@ -1,1 +1,4 @@
-Print Open \foo "test.txt";
+Let K be Box 0;
+Begin (Set K);
+Print "Looping!";
+Do Unbox K;
