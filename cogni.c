@@ -2580,6 +2580,51 @@ cog_object* fn_split() {
 }
 cog_modfunc fne_split = {"Split", COG_FUNC, fn_split, "Split a string into a list of substrings."};
 
+#define _UPPERLOWERBODY(ulfunc) \
+    COG_ENSURE_N_ITEMS(1); \
+    cog_object* str = cog_pop(); \
+    COG_ENSURE_TYPE(str, &ot_string); \
+    char* old_locale = setlocale(LC_ALL, "en_US.UTF-8"); \
+    cog_object* result = cog_emptystring(); \
+    cog_object* tail = result; \
+    char buffer[MB_CUR_MAX + 1]; \
+    int i = 0; \
+    while (str) { \
+        memset(buffer, 0, sizeof(buffer)); \
+        int len = min(MB_CUR_MAX, str->stored_chars - i); \
+        strncpy(buffer, &str->as_chars[i], len); \
+        /* If the current chunk has less than MB_CUR_MAX characters, */ \
+        /* copy remaining characters from the next chunk             */ \
+        if (len < MB_CUR_MAX && str->next) { \
+            int remaining = MB_CUR_MAX - len; \
+            int next_len = min(remaining, str->next->stored_chars); \
+            strncat(buffer, str->next->as_chars, next_len); \
+        } \
+        wchar_t wc; \
+        len = mblen(buffer, MB_CUR_MAX); \
+        mbtowc(&wc, buffer, len); \
+        wc = ulfunc(wc); \
+        char mb_buffer[MB_CUR_MAX + 1]; \
+        memset(mb_buffer, 0, sizeof(mb_buffer)); \
+        wctomb(mb_buffer, wc); \
+        for (int j = 0; j < strlen(mb_buffer); j++) { \
+            cog_string_append_byte(&tail, mb_buffer[j]); \
+        } \
+        i += len; \
+        while (str && i >= str->stored_chars) { \
+            i -= str->stored_chars; \
+            str = str->next; \
+        } \
+    } \
+    cog_push(result); \
+    setlocale(LC_ALL, old_locale); \
+    return NULL; \
+
+cog_object* fn_lowercase() { _UPPERLOWERBODY(towlower) }
+cog_object* fn_uppercase() { _UPPERLOWERBODY(towupper) }
+cog_modfunc fne_lowercase = {"Lowercase", COG_FUNC, fn_lowercase, "Converts a string to lower case."};
+cog_modfunc fne_uppercase = {"Uppercase", COG_FUNC, fn_uppercase, "Converts a string to upper case."};
+
 #define _ONEFUNNUMBODY(ffn, ifn) \
     COG_ENSURE_N_ITEMS(1); \
     cog_object* a = cog_pop(); \
@@ -2749,6 +2794,8 @@ static cog_modfunc* builtin_modfunc_table[] = {
     &fne_ordinal,
     &fne_character,
     &fne_split,
+    &fne_lowercase,
+    &fne_uppercase,
     // list functions
     // conversion functions
     &fne_number,
