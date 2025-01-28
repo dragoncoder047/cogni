@@ -2604,11 +2604,10 @@ cog_modfunc fne_split = {"Split", COG_FUNC, fn_split, "Split a string into a lis
         len = mblen(buffer, MB_CUR_MAX); \
         mbtowc(&wc, buffer, len); \
         wc = ulfunc(wc); \
-        char mb_buffer[MB_CUR_MAX + 1]; \
-        memset(mb_buffer, 0, sizeof(mb_buffer)); \
-        wctomb(mb_buffer, wc); \
-        for (int j = 0; j < strlen(mb_buffer); j++) { \
-            cog_string_append_byte(&tail, mb_buffer[j]); \
+        memset(buffer, 0, sizeof(buffer)); \
+        wctomb(buffer, wc); \
+        for (int j = 0; j < strlen(buffer); j++) { \
+            cog_string_append_byte(&tail, buffer[j]); \
         } \
         i += len; \
         while (str && i >= str->stored_chars) { \
