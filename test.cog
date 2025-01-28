@@ -1,3 +1,8 @@
+Print If == "Hello World" "Hello World"
+    "PASS: Comparing equal strings read-in"
+else
+    "FAIL: Comparing equal strings read-in";
+
 Print If == "Hello World" Prepend "Hello " "World"
     "PASS: Prepending strings"
 else

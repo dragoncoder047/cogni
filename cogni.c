@@ -963,8 +963,9 @@ cog_object* cog_make_character(char c) {
 
 cog_object* cog_strappend(cog_object* str1, cog_object* str2) {
     cog_object* str1clone = cog_strdup(str1);
-    // cog_string_delete_char(&str1clone, cog_strlen(str1));
+    cog_string_delete_char(&str1clone, cog_strlen(str1));
     cog_object* str12 = cog_strcat(&str1clone, str2);
+    assert(cog_strlen(str12) == cog_strlen(str1) + cog_strlen(str2));
     return str12;
 }
 
@@ -973,26 +974,29 @@ int cog_strcmp(cog_object* str1, cog_object* str2) {
 }
 
 int cog_strncmp(cog_object* str1, cog_object* str2, size_t n) {
-    assert(str1->type == &ot_string);
-    assert(str2->type == &ot_string);
+    assert(!str1 || str1->type == &ot_string);
+    assert(!str2 || str2->type == &ot_string);
     int i1 = 0, i2 = 0;
     while (str1 && str2 && n > 0) {
-        char d = str1->as_chars[i1] - str2->as_chars[i2];
+        char c1 = str1->as_chars[i1];
+        char c2 = str2->as_chars[i2];
+        char d = c1 - c2;
         if (d != 0) return d;
         i1++, i2++, n--;
-        if (i1 >= str1->stored_chars) {
-            i1 = 0;
+        while (str1 && i1 >= str1->stored_chars) {
+            i1 -= str1->stored_chars;
             str1 = str1->next;
         }
-        if (i2 >= str2->stored_chars) {
-            i2 = 0;
+        while (str2 && i2 >= str2->stored_chars) {
+            i2 -= str2->stored_chars;
             str2 = str2->next;
         }
     }
     if (n == 0) return 0;
     if (!str1 && !str2) return 0;
-    if (str1) return 1;
-    return -1;
+    if (!str1) return -1;
+    if (!str2) return 1;
+    return 0;
 }
 
 int cog_strcasecmp(cog_object* str1, cog_object* str2) {
@@ -1003,11 +1007,11 @@ int cog_strcasecmp(cog_object* str1, cog_object* str2) {
         char d = tolower(str1->as_chars[i1]) - tolower(str2->as_chars[i2]);
         if (d != 0) return d;
         i1++, i2++;
-        if (i1 >= str1->stored_chars) {
+        while (str1 && i1 >= str1->stored_chars) {
             i1 = 0;
             str1 = str1->next;
         }
-        if (i2 >= str2->stored_chars) {
+        while (str2 && i2 >= str2->stored_chars) {
             i2 = 0;
             str2 = str2->next;
         }
