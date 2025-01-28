@@ -22,3 +22,6 @@ Def SameLists as (
         ) else False;
     );
 );
+
+~~ easy here - change-of-base formula
+Def Log as (Let Base; Let X; / Ln Base Ln X);

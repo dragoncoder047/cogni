@@ -641,8 +641,8 @@ extern cog_obj_type cog_ot_owned_pointer;
  */
 #define COG_GET_NUMBER(obj, var) \
     do { \
-        if ((obj) == NULL || ((obj)->type != &ot_int && (obj)->type != &ot_float && (obj)->type != &ot_bool)) { \
-            COG_RETURN_ERROR(cog_sprintf("Expected a number or boolean, but got %s", (obj) ? (obj)->type->typename : "NULL")); \
+        if ((obj) == NULL || ((obj)->type != &ot_int && (obj)->type != &ot_float)) { \
+            COG_RETURN_ERROR(cog_sprintf("Expected a number, but got %s", (obj) ? (obj)->type->typename : "NULL")); \
         } \
         else var = (obj)->type == &ot_float ? (obj)->as_float : (obj)->as_int; \
     } while (0)

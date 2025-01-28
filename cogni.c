@@ -2742,6 +2742,60 @@ cog_object* fn_set() {
 }
 cog_modfunc fne_set = {"Set", COG_FUNC, fn_set, "Mutates a box in-place by changing the object it points to."};
 
+#define _TRIG_FUNC(f1, f2) \
+    COG_ENSURE_N_ITEMS(1); \
+    cog_object* obj = cog_pop(); \
+    double n = 0; \
+    COG_GET_NUMBER(obj, n); \
+    cog_push(cog_box_float(f1(f2(n)))); \
+    return NULL;
+
+double deg2rad(double deg) { return deg * M_PI / 180.; }
+double rad2deg(double rad) { return rad * 180. / M_PI; }
+
+cog_object* fn_sind() { _TRIG_FUNC(sin, deg2rad) }
+cog_object* fn_cosd() { _TRIG_FUNC(cos, deg2rad) }
+cog_object* fn_tand() { _TRIG_FUNC(tan, deg2rad) }
+cog_object* fn_sin() { _TRIG_FUNC(sin,) }
+cog_object* fn_cos() { _TRIG_FUNC(cos,) }
+cog_object* fn_tan() { _TRIG_FUNC(tan,) }
+cog_object* fn_exp() { _TRIG_FUNC(exp,) }
+cog_object* fn_ln() { _TRIG_FUNC(log,) }
+cog_object* fn_asind() { _TRIG_FUNC(rad2deg, asin) }
+cog_object* fn_acosd() { _TRIG_FUNC(rad2deg, acos) }
+cog_object* fn_atand() { _TRIG_FUNC(rad2deg, atan) }
+cog_object* fn_asin() { _TRIG_FUNC(asin,) }
+cog_object* fn_acos() { _TRIG_FUNC(acos,) }
+cog_object* fn_atan() { _TRIG_FUNC(atan,) }
+cog_object* fn_sinhd() { _TRIG_FUNC(sinh, deg2rad) }
+cog_object* fn_coshd() { _TRIG_FUNC(cosh, deg2rad) }
+cog_object* fn_tanhd() { _TRIG_FUNC(tanh, deg2rad) }
+cog_object* fn_sinh() { _TRIG_FUNC(sinh,) }
+cog_object* fn_cosh() { _TRIG_FUNC(cosh,) }
+cog_object* fn_tanh() { _TRIG_FUNC(tanh,) }
+cog_modfunc fne_sind = {"Sind", COG_FUNC, fn_sind, "Return the sine of the angle, which is expressed in degrees."};
+cog_modfunc fne_cosd = {"Cosd", COG_FUNC, fn_cosd, "Return the cosine of the angle, which is expressed in degrees."};
+cog_modfunc fne_tand = {"Tand", COG_FUNC, fn_tand, "Return the tangent of the angle, which is expressed in degrees."};
+cog_modfunc fne_sin = {"Sin", COG_FUNC, fn_sin, "Return the sine of the angle, which is expressed in radians."};
+cog_modfunc fne_cos = {"Cos", COG_FUNC, fn_cos, "Return the cosine of the angle, which is expressed in radians."};
+cog_modfunc fne_tan = {"Tan", COG_FUNC, fn_tan, "Return the tangent of the angle, which is expressed in radians."};
+cog_modfunc fne_exp = {"Exp", COG_FUNC, fn_exp, "Return the base-e exponential of the number."};
+cog_modfunc fne_ln = {"Ln", COG_FUNC, fn_ln, "Return the natural (base-e) logarithm of the number."};
+cog_modfunc fne_asind = {"Asind", COG_FUNC, fn_asind, "Return the inverse sine of the value, in degrees."};
+cog_modfunc fne_acosd = {"Acosd", COG_FUNC, fn_acosd, "Return the inverse cosine of the value, in degrees."};
+cog_modfunc fne_atand = {"Atand", COG_FUNC, fn_atand, "Return the inverse tangent of the value, in degrees."};
+cog_modfunc fne_asin = {"Asin", COG_FUNC, fn_asin, "Return the inverse sine of the value, in radians."};
+cog_modfunc fne_acos = {"Acos", COG_FUNC, fn_acos, "Return the inverse cosine of the value, in radians."};
+cog_modfunc fne_atan = {"Atan", COG_FUNC, fn_atan, "Return the inverse tangent of the value, in radians."};
+cog_modfunc fne_sinhd = {"Sinhd", COG_FUNC, fn_sinhd, "Return the hyperbolic sine of the angle, which is expressed in degrees."};
+cog_modfunc fne_coshd = {"Coshd", COG_FUNC, fn_coshd, "Return the hyperbolic cosine of the angle, which is expressed in degrees."};
+cog_modfunc fne_tanhd = {"Tanhd", COG_FUNC, fn_tanhd, "Return the hyperbolic tangent of the angle, which is expressed in degrees."};
+cog_modfunc fne_sinh = {"Sinh", COG_FUNC, fn_sinh, "Return the hyperbolic sine of the angle, which is expressed in radians."};
+cog_modfunc fne_cosh = {"Cosh", COG_FUNC, fn_cosh, "Return the hyperbolic cosine of the angle, which is expressed in radians."};
+cog_modfunc fne_tanh = {"Tanh", COG_FUNC, fn_tanh, "Return the hyperbolic tangent of the angle, which is expressed in radians."};
+
+cog_obj_type ot_continuation = {"Continuation", cog_walk_both, NULL};
+
 // MARK: BUILTINS TABLES
 
 static cog_modfunc* builtin_modfunc_table[] = {
@@ -2787,6 +2841,27 @@ static cog_modfunc* builtin_modfunc_table[] = {
     &fne_round,
     &fne_ceil,
     &fne_abs,
+    // trig functions
+    &fne_sind,
+    &fne_cosd,
+    &fne_tand,
+    &fne_sin,
+    &fne_cos,
+    &fne_tan,
+    &fne_exp,
+    &fne_ln,
+    &fne_asind,
+    &fne_acosd,
+    &fne_atand,
+    &fne_asin,
+    &fne_acos,
+    &fne_atan,
+    &fne_sinhd,
+    &fne_coshd,
+    &fne_tanhd,
+    &fne_sinh,
+    &fne_cosh,
+    &fne_tanh,
     // boolean functions
     &fne_or,
     &fne_and,
@@ -2904,6 +2979,7 @@ static cog_obj_type* builtin_types[] = {
     &ot_def_or_let_special,
     &ot_var,
     &ot_box,
+    &ot_continuation,
     NULL
 };
 
