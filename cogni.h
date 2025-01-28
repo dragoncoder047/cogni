@@ -569,6 +569,13 @@ void cog_push_scope(cog_object*);
  */
 void cog_pop_scope();
 
+/**
+ * Hashes an object.
+ * @param obj The object to hash.
+ * @return The hash value.
+ */
+cog_object* cog_hash(cog_object* obj);
+
 extern cog_obj_type cog_ot_pointer;
 extern cog_obj_type cog_ot_owned_pointer;
 

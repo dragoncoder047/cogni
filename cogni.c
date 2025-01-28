@@ -329,6 +329,12 @@ void cog_reverse_list_inplace(cog_object** list) {
     *list = prev;
 }
 
+cog_object* cog_hash(cog_object* obj) {
+    cog_object* ret = cog_run_well_known(obj, COG_M_HASH);
+    if (cog_same_identifiers(cog_not_implemented(), ret)) return ret;
+    return cog_pop();
+}
+
 // MARK: ENVIRONMENT
 
 void cog_defun(cog_object* identifier, cog_object* value) {
@@ -522,6 +528,12 @@ cog_object* int_printself() {
 cog_object_method ome_int_show = {&ot_int, COG_M_SHOW, int_printself};
 cog_object_method ome_int_run = {&ot_int, COG_M_EXEC, cog_obj_push_self};
 
+static cog_object* m_int_hash() {
+    // Integers hash to themselves
+    return NULL;
+}
+cog_object_method ome_int_hash = {&ot_int, COG_M_HASH, m_int_hash};
+
 cog_obj_type ot_bool = {"Boolean", NULL};
 cog_object* cog_box_bool(bool i) {
     cog_object* obj = cog_make_obj(&ot_bool);
@@ -543,6 +555,15 @@ cog_object* bool_printself() {
 cog_object_method ome_bool_show = {&ot_bool, COG_M_SHOW, bool_printself};
 cog_object_method ome_bool_run = {&ot_bool, COG_M_EXEC, cog_obj_push_self};
 
+static cog_object* m_bool_hash() {
+    cog_object* num = cog_pop();
+    int64_t hash = num->as_int;
+    // Booleans hash like integers
+    cog_push(cog_box_int(hash));
+    return NULL;
+}
+cog_object_method ome_bool_hash = {&ot_bool, COG_M_HASH, m_bool_hash};
+
 cog_obj_type ot_float = {"Number", NULL};
 cog_object* cog_box_float(double i) {
     cog_object* obj = cog_make_obj(&ot_float);
@@ -563,6 +584,16 @@ cog_object* float_printself() {
 }
 cog_object_method ome_float_show = {&ot_float, COG_M_SHOW, float_printself};
 cog_object_method ome_float_run = {&ot_float, COG_M_EXEC, cog_obj_push_self};
+
+static cog_object* m_float_hash() {
+    cog_object* num = cog_pop();
+    double val = num->as_float;
+    // floats hash to their int value if it's an int, otherwise the reinterpret_cast of their bits
+    int64_t hash = val == ((double)((int64_t)val)) ? (int64_t)val : *(int64_t*)&val;
+    cog_push(cog_box_int(hash));
+    return NULL;
+}
+cog_object_method ome_float_hash = {&ot_float, COG_M_HASH, m_float_hash};
 
 // MARK: IDENTIFIERS
 
@@ -729,6 +760,14 @@ cog_object* m_run_identifier() {
 }
 cog_object_method ome_identifier_run = {&ot_identifier, COG_M_EXEC, m_run_identifier};
 
+int64_t _string_hash(cog_object*, int64_t);
+
+static cog_object* m_identifier_hash() {
+    cog_push(cog_box_int(_string_hash(cog_explode_identifier(cog_pop(), true), 14695981039346656039ULL)));
+    return NULL;
+}
+cog_object_method ome_identifier_hash = {&ot_identifier, COG_M_HASH, m_identifier_hash};
+
 bool cog_same_identifiers(cog_object* s1, cog_object* s2) {
     if (!s1 && !s2) return true;
     if (!s1 || !s2) return false;
@@ -760,6 +799,12 @@ cog_object* m_symbol_show() {
     return NULL;
 }
 cog_object_method ome_symbol_show = {&ot_symbol, COG_M_SHOW, m_symbol_show};
+
+static cog_object* m_identifier_hash() {
+    cog_push(cog_box_int(_string_hash(cog_explode_identifier(cog_pop()->next, false), 14695981039346656035ULL)));
+    return NULL;
+}
+cog_object_method ome_symbol_hash = {&ot_symbol, COG_M_HASH, cog_not_implemented};
 
 // MARK: STRINGS
 
@@ -953,6 +998,23 @@ cog_object* m_string_show() {
 }
 cog_object_method ome_string_show = {&ot_string, COG_M_SHOW, m_string_show};
 cog_object_method ome_string_run = {&ot_string, COG_M_EXEC, cog_obj_push_self};
+
+static int64_t _string_hash(cog_object* str, int64_t hash) {
+    while (str) {
+        for (int i = 0; i < str->stored_chars; i++) {
+            hash ^= (int64_t)str->as_chars[i];
+            hash *= 1099511628211ULL;
+        }
+        str = str->next;
+    }
+    return hash;
+}
+
+static cog_object* m_string_hash() {
+    cog_push(cog_box_int(_string_hash(cog_pop(), 14695981039346656037ULL)));
+    return NULL;
+}
+cog_object_method ome_string_hash = {&ot_string, COG_M_HASH, m_string_hash};
 
 cog_object* cog_make_character(char c) {
     // a character is just a one character string
@@ -1174,6 +1236,8 @@ cog_object* m_iostring_show() {
 }
 cog_object_method ome_iostring_show = {&ot_iostring, COG_M_SHOW, m_iostring_show};
 
+cog_object_method ome_iostring_hash = {&ot_iostring, COG_M_HASH, cog_not_implemented};
+
 // MARK: BUILTIN FUNCTION OBJECTS
 
 cog_obj_type ot_bfunction = {"BuiltinFunction", NULL};
@@ -1194,6 +1258,8 @@ cog_object* m_bfunction_run() {
     return f->fun();
 }
 cog_object_method ome_bfunction_run = {&ot_bfunction, COG_M_EXEC, m_bfunction_run};
+
+cog_object_method ome_bfunction_hash = {&ot_bfunction, COG_M_HASH, cog_not_implemented};
 
 // MARK: BLOCKS AND CLOSURES
 
@@ -1241,6 +1307,7 @@ cog_object* m_closure_run() {
     return NULL;
 }
 cog_object_method ome_closure_run = {&ot_closure, COG_M_EXEC, m_closure_run};
+cog_object_method ome_closure_hash = {&ot_closure, COG_M_HASH, cog_not_implemented};
 
 cog_object* fn_closure_restore_scope() {
     cog_object* old_scope = cog_pop();
@@ -1269,6 +1336,9 @@ cog_object* m_block_show() {
     return NULL;
 }
 cog_object_method ome_block_show = {&ot_block, COG_M_SHOW, m_block_show};
+cog_object_method ome_block_hash = {&ot_block, COG_M_HASH, cog_not_implemented};
+
+
 
 // MARK: DUMPER
 
@@ -1354,7 +1424,6 @@ static void pr_refs_recursive(cog_object* obj, cog_object* alist, cog_object* st
         cog_fputchar_imm(stream, ')');
     }
 }
-
 
 void cog_dump(cog_object* obj, cog_object* stream, bool readably) {
     cog_object* alist_header = cog_make_obj(NULL);
@@ -1920,6 +1989,7 @@ cog_object* m_def_or_let_run() {
     return NULL;
 }
 cog_object_method ome_def_or_let_run = {&ot_def_or_let_special, COG_M_EXEC, m_def_or_let_run};
+cog_object_method ome_def_or_let_hash = {&ot_def_or_let_special, COG_M_HASH, cog_not_implemented};
 
 cog_object* m_def_or_let_show() {
     cog_object* self = cog_pop();
@@ -1938,6 +2008,9 @@ cog_object* m_var_run_self() {
     return NULL;
 }
 cog_object_method ome_var_run = {&ot_var, COG_M_EXEC, m_var_run_self};
+cog_object_method ome_var_hash = {&ot_var, COG_M_HASH, cog_not_implemented};
+
+
 
 cog_object* fn_parser_transform_def_or_let() {
     cog_object* cookie = cog_pop();
@@ -2711,6 +2784,18 @@ static cog_object_method* builtin_objfunc_table[] = {
     &ome_def_or_let_run,
     &ome_def_or_let_show,
     &ome_var_run,
+    &ome_int_hash,
+    &ome_bool_hash,
+    &ome_float_hash,
+    &ome_identifier_hash,
+    &ome_symbol_hash,
+    &ome_string_hash,
+    &ome_iostring_hash,
+    &ome_bfunction_hash,
+    &ome_closure_hash,
+    &ome_block_hash,
+    &ome_def_or_let_hash,
+    &ome_var_hash,
     NULL
 };
 

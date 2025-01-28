@@ -66,11 +66,14 @@ static cog_object* m_file_stringify() {
 }
 cog_object_method ome_file_stringify = {&ot_file, COG_M_SHOW, m_file_stringify};
 
+cog_object_method ome_file_hash = {&ot_file, COG_M_HASH, cog_not_implemented};
+
 cog_object_method* m_file_table[] = {
     &ome_file_write,
     &ome_file_getch,
     &ome_file_ungets,
     &ome_file_stringify,
+    &ome_file_hash,
     NULL
 };
 
