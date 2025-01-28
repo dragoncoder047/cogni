@@ -17,6 +17,7 @@
 #include <stdarg.h>
 #include <math.h>
 #include <wchar.h>
+#include <locale.h>
 
 #ifndef cog_malloc
 #define cog_malloc malloc
@@ -2541,10 +2542,12 @@ cog_object* fn_character() {
             COG_ENSURE_TYPE(a, &ot_int);
     }
     wchar_t ord = (wchar_t)(a->type == &ot_int ? a->as_int : (int64_t)a->as_float);
+    char* old_locale = setlocale(LC_ALL, "en_US.UTF-8");
     mbtowc(NULL, NULL, 0); // reset the conversion state
     char b[MB_CUR_MAX+1];
     memset(b, 0, MB_CUR_MAX + 1);
     size_t len = wctomb(b, ord);
+    setlocale(LC_ALL, old_locale);
     if (len == (size_t)-1)
         COG_RETURN_ERROR(cog_sprintf("Invalid ordinal %O", a));
     cog_push(cog_string(b));
