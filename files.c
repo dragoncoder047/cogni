@@ -138,6 +138,7 @@ cog_object* fn_open() {
     cog_string_to_cstring(filename, buf, len);
     FILE* f = fopen(buf, mod);
     if (errno) COG_RETURN_ERROR(cog_sprintf("While opening %O: [Errno %i] %s", filename, errno, strerror(errno)));
+    else if (!f) COG_RETURN_ERROR(cog_sprintf("Unknown error while opening %O", filename));
     cog_push(cog_make_filestream(f, filename));
     return NULL;
 }

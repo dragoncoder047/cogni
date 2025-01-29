@@ -2549,12 +2549,10 @@ cog_object* fn_character() {
             COG_ENSURE_TYPE(a, &cog_ot_int);
     }
     wchar_t ord = (wchar_t)(a->type == &cog_ot_int ? a->as_int : (int64_t)a->as_float);
-    char* old_locale = setlocale(LC_ALL, "en_US.UTF-8");
     mbtowc(NULL, NULL, 0); // reset the conversion state
     char b[MB_CUR_MAX+1];
     memset(b, 0, MB_CUR_MAX + 1);
     size_t len = wctomb(b, ord);
-    setlocale(LC_ALL, old_locale);
     if (len == (size_t)-1)
         COG_RETURN_ERROR(cog_sprintf("Invalid ordinal %O", a));
     cog_push(cog_string(b));
@@ -2591,7 +2589,6 @@ cog_modfunc fne_split = {"Split", COG_FUNC, fn_split, "Split a string into a lis
     COG_ENSURE_N_ITEMS(1); \
     cog_object* str = cog_pop(); \
     COG_ENSURE_TYPE(str, &cog_ot_string); \
-    char* old_locale = setlocale(LC_ALL, "en_US.UTF-8"); \
     cog_object* result = cog_emptystring(); \
     cog_object* tail = result; \
     char buffer[MB_CUR_MAX + 1]; \
@@ -2623,7 +2620,6 @@ cog_modfunc fne_split = {"Split", COG_FUNC, fn_split, "Split a string into a lis
         } \
     } \
     cog_push(result); \
-    setlocale(LC_ALL, old_locale); \
     return NULL; \
 
 cog_object* fn_lowercase() { _UPPERLOWERBODY(towlower) }
@@ -2690,8 +2686,7 @@ cog_object* fn_wait() {
 cog_modfunc fne_wait = {"Wait", COG_FUNC, fn_wait, "Sleep for a number of seconds."};
 
 cog_object* fn_stop() {
-    cog_quit();
-    exit(EXIT_SUCCESS);
+    COG_RETURN_ERROR(NULL);
 }
 cog_modfunc fne_stop = {"Stop", COG_FUNC, fn_stop, "Stop the program."};
 
@@ -3041,6 +3036,7 @@ static void install_builtins() {
 static void cogni_debug_handler(int sig);
 void cog_init() {
     signal(SIGSEGV, cogni_debug_handler);
+    setlocale(LC_ALL, "");
 
     COG_GLOBALS.not_impl_sym = cog_make_identifier_c("[[Status::NotImplemented]]");
     COG_GLOBALS.error_sym = cog_make_identifier_c("[[Status::Error]]");

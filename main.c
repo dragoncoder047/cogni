@@ -31,7 +31,7 @@ bool do_top(cog_object* cookie, cog_object* status) {
 
     if (cog_same_identifiers(end_status, cog_error())) {
         cog_object* msg = cog_pop();
-        cog_printf("ERROR: %#O\n", msg);
+        if (msg) cog_printf("ERROR: %#O\n", msg);
         return false;
     } else {
         // cog_object* done = cog_pop();
@@ -55,31 +55,38 @@ bool run(cog_object* obj) {
 
 static jmp_buf interrupt_jump;
 static void interrupt(int sig) {
-    printf("\b\b  \b\b"); // clear the "^C"
-    fflush(stdout);
     longjmp(interrupt_jump, 1);
 }
 void repl() {
-    printf("use Stop to exit REPL\nWARNING: REPL is buggy\n");
+    printf("use ^D to exit REPL\nWARNING: REPL is buggy\n");
     rl_initialize();
+    using_history();
     signal(SIGINT, interrupt);
     char* line_input;
     cog_object* the_string = cog_emptystring();
     const char* prompt = "cognate> ";
     for (;;) {
-        line_input = readline(prompt);
-        prompt = "    ...> ";
-        cog_strcat(&the_string, cog_string(line_input));
-        size_t len = strlen(line_input);
-        if (len) add_history(line_input);
-        free(line_input);
-        if (!len) {
-            if (!setjmp(interrupt_jump)) {
-                run(the_string);
-            } else {
-                cog_push(cog_string("Interrupted!"));
-                do_top(NULL, cog_error());
+        bool is_end = false;
+        if (!setjmp(interrupt_jump)) {
+            line_input = readline(prompt);
+            prompt = "    ...> ";
+            if (!line_input) {
+                putchar('\n');
+                return;
             }
+            cog_strcat(&the_string, cog_string(line_input));
+            size_t len = strlen(line_input);
+            if (len) add_history(line_input);
+            free(line_input);
+            if (!len) {
+                is_end = true;
+                run(the_string);
+            }
+        } else {
+            cog_push(cog_string("Interrupted!"));
+            do_top(NULL, cog_error());
+        }
+        if (is_end) {
             the_string = cog_emptystring();
             prompt = "cognate> ";
         }
