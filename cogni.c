@@ -1281,15 +1281,10 @@ cog_object* cog_make_closure(cog_object* block, cog_object* scopes) {
 }
 
 cog_object* m_closure_exec() {
-    // trace();
-    // debug_dump_stuff();
-    // abort();
     cog_object* self = cog_pop();
     cog_object* cookie = cog_pop();
-    bool should_push_scope = true;
-    if (cookie) {
-        should_push_scope = cog_expect_type_fatal(cookie, &cog_ot_bool)->as_int;
-    }
+    if (!cookie) cookie = cog_box_bool(true);
+    bool should_push_scope = cog_expect_type_fatal(cookie, &cog_ot_bool)->as_int;
     // push scope teardown command
     if (should_push_scope) cog_run_next(cog_make_identifier_c("[[Closure::RestoreCallerScope]]"), cog_on_exit(), COG_GLOBALS.scopes);
     // push all current commands
@@ -1298,10 +1293,8 @@ cog_object* m_closure_exec() {
     COG_ITER_LIST(self->data->next, cmd) cog_run_next(cmd, NULL, NULL);
     cog_reverse_list_inplace(&COG_GLOBALS.command_queue);
     cog_list_splice(&COG_GLOBALS.command_queue, head_existing);
-    // push closed over scopes
-    COG_GLOBALS.scopes = self->next;
-    // push a new scope for local variables
-    if (should_push_scope) cog_push_new_scope();
+    cog_push_to(&cookie, self->next);
+    cog_run_next(cog_make_identifier_c("[[Closure::InsertCallScope]]"), cog_on_enter(), cookie);
     return NULL;
 }
 cog_object_method ome_closure_exec = {&ot_closure, COG_M_EXEC, m_closure_exec};
@@ -1316,6 +1309,21 @@ cog_modfunc fne_closure_restore_scope = {
     "[[Closure::RestoreCallerScope]]",
     COG_COOKIEFUNC,
     fn_closure_restore_scope,
+    NULL,
+};
+
+cog_object* fn_closure_insert_new_scope() {
+    cog_object* cookie2 = cog_pop();
+    cog_object* closed_scopes = cookie2->data;
+    bool should_push_new = cookie2->next ? cookie2->next->as_int : false;
+    COG_GLOBALS.scopes = closed_scopes;
+    if (should_push_new) cog_push_new_scope();
+    return NULL;
+}
+cog_modfunc fne_closure_insert_new_scope = {
+    "[[Closure::InsertCallScope]]",
+    COG_COOKIEFUNC,
+    fn_closure_insert_new_scope,
     NULL,
 };
 
@@ -2815,9 +2823,8 @@ cog_object* m_continuation_exec() {
     cog_object* old_command_queue = self->next->data;
     cog_object* old_scopes = self->next->next;
     // TODO: get displaced enter and exit handlers and queue them to be run
-    // TODO: this would allow the closure to put the scope pushing in an enter handler
-    // TODO: and that would mean continuations don't have to save it because it gets saved
-    // TODO: on the command queue cookie
+    // TODO: this would mean continuations don't have to save the scopes because it gets saved
+    // TODO: on the command queue cookie of closures' enter handlers
     COG_GLOBALS.stack = old_stack;
     COG_GLOBALS.command_queue = old_command_queue;
     COG_GLOBALS.scopes = old_scopes;
@@ -2862,6 +2869,7 @@ static cog_modfunc* builtin_modfunc_table[] = {
     &fne_parser_handle_token,
     &fne_parser_transform_def_or_let,
     &fne_closure_restore_scope,
+    &fne_closure_insert_new_scope,
     // math functions
     &fne_empty,
     &fne_plus,

@@ -1,7 +1,8 @@
 import glob
-import subprocess
-import re
 import os
+import re
+import signal
+import subprocess
 
 os.chdir("cognac/")
 
@@ -20,11 +21,11 @@ def test(file: str, process: subprocess.Popen, pad_length: int):
     try:
         exit_code = process.wait()
     except KeyboardInterrupt:
-        exit_code = "^C"
-    out: bytes = process.stdout.read()
-    if exit_code == "^C":
+        exit_code = signal.SIGINT
+    out: bytes = process.stdout.read() + process.stderr.read() + \
+        f"\nProgram exited with code {exit_code}\n".encode()
+    if exit_code == signal.SIGINT:
         print("\x1b[35mINTERRUPT\x1b[0m", end=" ")
-        out += b"^C"
     elif exit_code != 0:
         crashes += 1
         print("\x1b[31mCRASH\x1b[0m", end=" ")
@@ -49,7 +50,7 @@ def test(file: str, process: subprocess.Popen, pad_length: int):
 test_files = sorted(glob.glob("tests/*.cog"))
 test_commands = [["../cogni", file] for file in test_files]
 test_processes = [subprocess.Popen(
-    command, stderr=subprocess.STDOUT, stdout=subprocess.PIPE)
+    command, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
     for command in test_commands]
 for f, p in zip(test_files, test_processes):
     test(f, p, max(map(len, test_files)))
