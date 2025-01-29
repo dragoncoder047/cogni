@@ -1,8 +1,8 @@
 .PHONY: test run cleanexec cleanlogs stresstest cleanexec prelude.inc prelude2.inc clean
-.NOPARALLEL: # cSpell: ignore NOPARALLEL
+.NOPARALLEL:
 test: stresstest cleanexec
 
-CFLAGS += -g1 -O0 -Wuninitialized -Wno-unused-command-line-argument -lm # cSpell: ignore Wuninitialized
+CFLAGS += -g1 -O0 -Wuninitialized -Wno-unused-command-line-argument -lm -lreadline
 ifeq ($(MODE), cpp)
 	CC := g++
 	CFLAGS += --std=gnu++2c
@@ -35,3 +35,4 @@ cleanlogs:
 	rm -f cognac/tests/*.log
 
 clean: cleanexec cleanlogs
+# cSpell: ignore lreadline Wuninitialized NOPARALLEL

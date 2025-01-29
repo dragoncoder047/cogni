@@ -1024,7 +1024,6 @@ cog_object* cog_make_character(char c) {
 
 cog_object* cog_strappend(cog_object* str1, cog_object* str2) {
     cog_object* str1clone = cog_strdup(str1);
-    cog_string_delete_char(&str1clone, cog_strlen(str1));
     cog_object* str12 = cog_strcat(&str1clone, str2);
     assert(cog_strlen(str12) == cog_strlen(str1) + cog_strlen(str2));
     return str12;
@@ -2078,7 +2077,7 @@ cog_object* fn_parser_parse_block_loop() {
     if (ijp->next->type == &ot_eof && stopwhen->type == &ot_eof) goto stop;
     if (ijp->next->type == &cog_ot_string && stopwhen->type == &cog_ot_string && !cog_strcmp(ijp->next, stopwhen)) goto stop;
     // else it is an error
-    cog_push(ijp->next->type == &cog_ot_string ? cog_sprintf("unexpected %O", ijp->next): cog_string("unexpected EOF"));
+    cog_push(ijp->next->type == &cog_ot_string ? cog_sprintf("unexpected %O", ijp->next) : cog_string("unexpected EOF"));
     return cog_error();
 
     next:

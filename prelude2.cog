@@ -25,3 +25,5 @@ Def SameLists as (
 
 ~~ easy here - change-of-base formula
 Def Log as (Let Base; Let X; / Ln Base Ln X);
+
+Def Include as (Let F be Open \read the file; Let B be Parse F; Close F; Do Do B);
