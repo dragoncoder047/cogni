@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <setjmp.h>
 #include <signal.h>
+#include <unistd.h>
 
 #include <readline/readline.h>
 #include <readline/history.h>
@@ -13,7 +14,7 @@
 #include "prelude2.inc"
 
 cog_object* fn_test() {
-    cog_printf("Hello, World! My cookie is %O\n", cog_pop());
+    cog_printf("Hello, World! The top item is %O\n", cog_pop());
     return NULL;
 }
 cog_modfunc af_test = {"Test-builtin", COG_FUNC, fn_test, "test functionality"};
@@ -32,13 +33,10 @@ bool do_top(cog_object* cookie, cog_object* status) {
     if (cog_same_identifiers(end_status, cog_error())) {
         cog_object* msg = cog_pop();
         if (msg) cog_printf("ERROR: %#O\n", msg);
+        if (isatty(fileno(stdin))) putchar('\a');
         return false;
-    } else {
-        // cog_object* done = cog_pop();
-        // cog_push(done);
-        // cog_printf("DEBUG: result is %#O\n", done);
-        return true;
     }
+    return true;
 }
 
 bool run(cog_object* obj) {
@@ -74,9 +72,16 @@ void repl() {
                 putchar('\n');
                 return;
             }
-            cog_strcat(&the_string, cog_string(line_input));
+            // add newline at end of input line cause
+            // readline doesn't do that automatically
             size_t len = strlen(line_input);
-            if (len) add_history(line_input);
+            if (len){
+                line_input = (char*)realloc(line_input, len + 1);
+                line_input[len] = '\n';
+                line_input[len+1] = 0;
+                cog_strcat(&the_string, cog_string(line_input));
+                add_history(line_input);
+            }
             free(line_input);
             if (!len) {
                 is_end = true;
@@ -89,6 +94,7 @@ void repl() {
         if (is_end) {
             the_string = cog_emptystring();
             prompt = "cognate> ";
+            cog_printf("Stack: %O\n", cog_get_stack());
         }
     }
 }

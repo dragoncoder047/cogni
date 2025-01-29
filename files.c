@@ -37,7 +37,7 @@ static cog_object* m_file_write() {
     }
     return NULL;
 }
-cog_object_method ome_file_write = {&ot_file, COG_SM_PUTS, m_file_write};
+cog_object_method ome_file_write = {&ot_file, "Stream::PutString", m_file_write};
 
 static cog_object* m_file_getch() {
     cog_object* file = cog_pop();
@@ -46,7 +46,7 @@ static cog_object* m_file_getch() {
     else cog_push(cog_make_character(fgetc(f)));
     return NULL;
 }
-static cog_object_method ome_file_getch = {&ot_file, COG_SM_GETCH, m_file_getch};
+static cog_object_method ome_file_getch = {&ot_file, "Stream::GetChar", m_file_getch};
 
 static cog_object* m_file_ungets() {
     cog_object* file = cog_pop();
@@ -59,7 +59,7 @@ static cog_object* m_file_ungets() {
     }
     return NULL;
 }
-static cog_object_method ome_file_ungets = {&ot_file, COG_SM_UNGETS, m_file_ungets};
+static cog_object_method ome_file_ungets = {&ot_file, "Stream::UngetString", m_file_ungets};
 
 /*
 XXX:                 then why does this not work??
@@ -98,9 +98,9 @@ static cog_object* m_file_stringify() {
     cog_push(cog_sprintf("<File %O at pos %li mode %s>", file->next, ftell(f), modestr));
     return NULL;
 }
-cog_object_method ome_file_stringify = {&ot_file, COG_M_SHOW, m_file_stringify};
+cog_object_method ome_file_stringify = {&ot_file, "Show", m_file_stringify};
 
-cog_object_method ome_file_hash = {&ot_file, COG_M_HASH, cog_not_implemented};
+cog_object_method ome_file_hash = {&ot_file, "Hash", cog_not_implemented};
 
 cog_object_method* m_file_table[] = {
     &ome_file_write,

@@ -335,7 +335,7 @@ void cog_reverse_list_inplace(cog_object** list) {
 }
 
 cog_object* cog_hash(cog_object* obj) {
-    cog_object* ret = cog_run_well_known(obj, COG_M_HASH);
+    cog_object* ret = cog_run_well_known(obj, "Hash");
     if (cog_same_identifiers(cog_not_implemented(), ret)) return ret;
     return cog_pop();
 }
@@ -389,6 +389,10 @@ cog_object* cog_pop() {
     return cog_pop_from(&COG_GLOBALS.stack);
 }
 
+cog_object* cog_get_stack() {
+    return COG_GLOBALS.stack;
+}
+
 size_t cog_stack_length() {
     size_t len = 0;
     COG_ITER_LIST(COG_GLOBALS.stack, _) len++;
@@ -414,14 +418,14 @@ void cog_run_next(cog_object* item, cog_object* when, cog_object* cookie) {
     cog_push_to(&COG_GLOBALS.command_queue, cookie);
 }
 
-cog_object* cog_run_well_known(cog_object* obj, enum cog_well_known_method meth) {
+cog_object* cog_run_well_known(cog_object* obj, const char* meth) {
     assert(obj != NULL);
     COG_ITER_LIST(COG_GLOBALS.modules, modobj) {
         cog_module* mod = (cog_module*)modobj->as_ptr;
         if (mod->mtab == NULL) continue;
         for (size_t i = 0; mod->mtab[i] != NULL; i++) {
             cog_object_method* m = mod->mtab[i];
-            if (m->wkm == meth && m->type_for == obj->type) {
+            if (strcmp(m->wkm, meth) == 0 && m->type_for == obj->type) {
                 cog_push(obj);
                 cog_object* res = m->func();
                 if (res && cog_same_identifiers(res, COG_GLOBALS.not_impl_sym)) continue;
@@ -432,18 +436,10 @@ cog_object* cog_run_well_known(cog_object* obj, enum cog_well_known_method meth)
     return cog_not_implemented();
 }
 
-cog_object* cog_run_well_known_strict(cog_object* obj, enum cog_well_known_method meth) {
+cog_object* cog_run_well_known_strict(cog_object* obj, const char* meth) {
     cog_object* res = cog_run_well_known(obj, meth);
     if (res && cog_same_identifiers(res, COG_GLOBALS.not_impl_sym)) {
-        const char* method_name;
-        switch (meth) {
-            case COG_M_EXEC: method_name = "COG_M_RUN_SELF"; break;
-            case COG_M_SHOW: method_name = "COG_M_STRINGIFY_SELF"; break;
-            case COG_SM_PUTS: method_name = "COG_SM_PUTS"; break;
-            case COG_SM_GETCH: method_name = "COG_SM_GETCH"; break;
-            case COG_SM_UNGETS: method_name = "COG_SM_UNGETS"; break;
-            default: method_name = "UNKNOWN_METHOD"; break;
-        }
+        const char* method_name = meth;
         fprintf(stderr, "error: %s not implemented for %s\n", method_name, obj->type ? obj->type->name : "NULL");
         COG_ITER_LIST(COG_GLOBALS.modules, modobj) {
             cog_module* mod = (cog_module*)modobj->as_ptr;
@@ -481,7 +477,7 @@ cog_object* cog_mainloop(cog_object* status) {
                 || cog_same_identifiers(cog_on_exit(), when)
                 || cog_same_identifiers(cog_on_enter(), when)) {
             cog_push(cookie);
-            cog_object* new_status = cog_run_well_known(which, COG_M_EXEC);
+            cog_object* new_status = cog_run_well_known(which, "Exec");
             if (cog_same_identifiers(new_status, cog_not_implemented())) {
                 cog_pop();
                 cog_push(cog_sprintf("Can't run %O", which));
@@ -527,14 +523,14 @@ cog_object* int_printself() {
     cog_push(cog_string(buffer));
     return NULL;
 }
-cog_object_method ome_int_show = {&cog_ot_int, COG_M_SHOW, int_printself};
-cog_object_method ome_int_exec = {&cog_ot_int, COG_M_EXEC, cog_obj_push_self};
+cog_object_method ome_int_show = {&cog_ot_int, "Show", int_printself};
+cog_object_method ome_int_exec = {&cog_ot_int, "Exec", cog_obj_push_self};
 
 static cog_object* m_int_hash() {
     // Integers hash to themselves
     return NULL;
 }
-cog_object_method ome_int_hash = {&cog_ot_int, COG_M_HASH, m_int_hash};
+cog_object_method ome_int_hash = {&cog_ot_int, "Hash", m_int_hash};
 
 cog_obj_type cog_ot_bool = {"Boolean", NULL};
 cog_object* cog_box_bool(bool i) {
@@ -554,8 +550,8 @@ cog_object* bool_printself() {
     cog_push(cog_string(buffer));
     return NULL;
 }
-cog_object_method ome_bool_show = {&cog_ot_bool, COG_M_SHOW, bool_printself};
-cog_object_method ome_bool_exec = {&cog_ot_bool, COG_M_EXEC, cog_obj_push_self};
+cog_object_method ome_bool_show = {&cog_ot_bool, "Show", bool_printself};
+cog_object_method ome_bool_exec = {&cog_ot_bool, "Exec", cog_obj_push_self};
 
 static cog_object* m_bool_hash() {
     cog_object* num = cog_pop();
@@ -564,7 +560,7 @@ static cog_object* m_bool_hash() {
     cog_push(cog_box_int(hash));
     return NULL;
 }
-cog_object_method ome_bool_hash = {&cog_ot_bool, COG_M_HASH, m_bool_hash};
+cog_object_method ome_bool_hash = {&cog_ot_bool, "Hash", m_bool_hash};
 
 cog_obj_type cog_ot_float = {"Number", NULL};
 cog_object* cog_box_float(double i) {
@@ -584,8 +580,8 @@ cog_object* float_printself() {
     cog_push(cog_string(buffer));
     return NULL;
 }
-cog_object_method ome_float_show = {&cog_ot_float, COG_M_SHOW, float_printself};
-cog_object_method ome_float_exec = {&cog_ot_float, COG_M_EXEC, cog_obj_push_self};
+cog_object_method ome_float_show = {&cog_ot_float, "Show", float_printself};
+cog_object_method ome_float_exec = {&cog_ot_float, "Exec", cog_obj_push_self};
 
 static cog_object* m_float_hash() {
     cog_object* num = cog_pop();
@@ -595,7 +591,7 @@ static cog_object* m_float_hash() {
     cog_push(cog_box_int(hash));
     return NULL;
 }
-cog_object_method ome_float_hash = {&cog_ot_float, COG_M_HASH, m_float_hash};
+cog_object_method ome_float_hash = {&cog_ot_float, "Hash", m_float_hash};
 
 // MARK: IDENTIFIERS
 
@@ -735,7 +731,7 @@ cog_object* m_show_identifier() {
 }
 cog_object_method ome_identifier_show = {
     &cog_ot_identifier,
-    COG_M_SHOW,
+    "Show",
     m_show_identifier
 };
 
@@ -760,7 +756,7 @@ cog_object* m_run_identifier() {
         }
     }
 }
-cog_object_method ome_identifier_exec = {&cog_ot_identifier, COG_M_EXEC, m_run_identifier};
+cog_object_method ome_identifier_exec = {&cog_ot_identifier, "Exec", m_run_identifier};
 
 static int64_t _string_hash(cog_object*, int64_t);
 
@@ -768,7 +764,7 @@ static cog_object* m_identifier_hash() {
     cog_push(cog_box_int(_string_hash(cog_explode_identifier(cog_pop(), true), 14695981039346656039ULL)));
     return NULL;
 }
-cog_object_method ome_identifier_hash = {&cog_ot_identifier, COG_M_HASH, m_identifier_hash};
+cog_object_method ome_identifier_hash = {&cog_ot_identifier, "Hash", m_identifier_hash};
 
 bool cog_same_identifiers(cog_object* s1, cog_object* s2) {
     if (!s1 && !s2) return true;
@@ -782,7 +778,7 @@ bool cog_same_identifiers(cog_object* s1, cog_object* s2) {
 
 cog_obj_type cog_ot_symbol = {"Symbol", cog_walk_only_next, NULL};
 
-cog_object_method ome_symbol_exec = {&cog_ot_symbol, COG_M_EXEC, cog_obj_push_self};
+cog_object_method ome_symbol_exec = {&cog_ot_symbol, "Exec", cog_obj_push_self};
 
 cog_object* cog_sym(cog_object* i) {
     cog_object* s = cog_make_obj(&cog_ot_symbol);
@@ -801,13 +797,13 @@ cog_object* m_symbol_show() {
     }
     return NULL;
 }
-cog_object_method ome_symbol_show = {&cog_ot_symbol, COG_M_SHOW, m_symbol_show};
+cog_object_method ome_symbol_show = {&cog_ot_symbol, "Show", m_symbol_show};
 
 static cog_object* m_symbol_hash() {
     cog_push(cog_box_int(_string_hash(cog_explode_identifier(cog_pop()->next, false), 14695981039346656035ULL)));
     return NULL;
 }
-cog_object_method ome_symbol_hash = {&cog_ot_symbol, COG_M_HASH, m_symbol_hash};
+cog_object_method ome_symbol_hash = {&cog_ot_symbol, "Hash", m_symbol_hash};
 
 // MARK: STRINGS
 
@@ -999,8 +995,8 @@ cog_object* m_string_show() {
     }
     return NULL;
 }
-cog_object_method ome_string_show = {&cog_ot_string, COG_M_SHOW, m_string_show};
-cog_object_method ome_string_exec = {&cog_ot_string, COG_M_EXEC, cog_obj_push_self};
+cog_object_method ome_string_show = {&cog_ot_string, "Show", m_string_show};
+cog_object_method ome_string_exec = {&cog_ot_string, "Exec", cog_obj_push_self};
 
 static int64_t _string_hash(cog_object* str, int64_t hash) {
     while (str) {
@@ -1017,7 +1013,7 @@ static cog_object* m_string_hash() {
     cog_push(cog_box_int(_string_hash(cog_pop(), 14695981039346656037ULL)));
     return NULL;
 }
-cog_object_method ome_string_hash = {&cog_ot_string, COG_M_HASH, m_string_hash};
+cog_object_method ome_string_hash = {&cog_ot_string, "Hash", m_string_hash};
 
 cog_object* cog_make_character(char c) {
     // a character is just a one character string
@@ -1130,7 +1126,7 @@ cog_object* cog_eof() {
 }
 
 char cog_getch(cog_object* file) {
-    cog_run_well_known_strict(file, COG_SM_GETCH);
+    cog_run_well_known_strict(file, "Stream::GetChar");
     cog_object* ch = cog_pop();
     if (ch && ch->type == &ot_eof) return EOF;
     return cog_nthchar(ch, 0);
@@ -1138,17 +1134,17 @@ char cog_getch(cog_object* file) {
 
 void cog_fputs_imm(cog_object* stream, const char* const string) {
     cog_push(cog_string(string));
-    cog_run_well_known_strict(stream, COG_SM_PUTS);
+    cog_run_well_known_strict(stream, "Stream::PutString");
 }
 
 void cog_fputchar_imm(cog_object* stream, char ch) {
     cog_push(cog_make_character(ch));
-    cog_run_well_known_strict(stream, COG_SM_PUTS);
+    cog_run_well_known_strict(stream, "Stream::PutString");
 }
 
 void cog_ungetch(cog_object* file, char ch) {
     cog_push(cog_make_character(ch));
-    cog_run_well_known_strict(file, COG_SM_UNGETS);
+    cog_run_well_known_strict(file, "Stream::UngetString");
 }
 
 // MARK: STRING STREAMS
@@ -1196,7 +1192,7 @@ static cog_object* m_iostring_write() {
     stream->data = cog_box_int(pos);
     return NULL;
 }
-cog_object_method ome_iostring_write = {&ot_iostring, COG_SM_PUTS, m_iostring_write};
+cog_object_method ome_iostring_write = {&ot_iostring, "Stream::PutString", m_iostring_write};
 
 cog_object* m_iostring_getch() {
     cog_object* stream = cog_pop();
@@ -1217,7 +1213,7 @@ cog_object* m_iostring_getch() {
     }
     return NULL;
 }
-cog_object_method ome_iostring_getch = {&ot_iostring, COG_SM_GETCH, m_iostring_getch};
+cog_object_method ome_iostring_getch = {&ot_iostring, "Stream::GetChar", m_iostring_getch};
 
 cog_object* m_iostring_ungets() {
     cog_object* stream = cog_pop();
@@ -1228,7 +1224,7 @@ cog_object* m_iostring_ungets() {
     }
     return NULL;
 }
-cog_object_method ome_iostring_ungets = {&ot_iostring, COG_SM_UNGETS, m_iostring_ungets};
+cog_object_method ome_iostring_ungets = {&ot_iostring, "Stream::UngetString", m_iostring_ungets};
 
 cog_object* m_iostring_show() {
     cog_object* stream = cog_pop();
@@ -1236,9 +1232,9 @@ cog_object* m_iostring_show() {
     cog_push(cog_sprintf("<IOstring at pos %O of %O>", stream->data, cog_iostring_get_contents(stream)));
     return NULL;
 }
-cog_object_method ome_iostring_show = {&ot_iostring, COG_M_SHOW, m_iostring_show};
+cog_object_method ome_iostring_show = {&ot_iostring, "Show", m_iostring_show};
 
-cog_object_method ome_iostring_hash = {&ot_iostring, COG_M_HASH, cog_not_implemented};
+cog_object_method ome_iostring_hash = {&ot_iostring, "Hash", cog_not_implemented};
 
 // MARK: BUILTIN FUNCTION OBJECTS
 
@@ -1259,9 +1255,9 @@ cog_object* m_bfunction_exec() {
     // jump straight into the function
     return f->fun();
 }
-cog_object_method ome_bfunction_exec = {&ot_bfunction, COG_M_EXEC, m_bfunction_exec};
+cog_object_method ome_bfunction_exec = {&ot_bfunction, "Exec", m_bfunction_exec};
 
-cog_object_method ome_bfunction_hash = {&ot_bfunction, COG_M_HASH, cog_not_implemented};
+cog_object_method ome_bfunction_hash = {&ot_bfunction, "Hash", cog_not_implemented};
 
 // MARK: BLOCKS AND CLOSURES
 
@@ -1301,8 +1297,8 @@ cog_object* m_closure_exec() {
     cog_run_next(cog_make_identifier_c("[[Closure::InsertCallScope]]"), cog_on_enter(), cookie);
     return NULL;
 }
-cog_object_method ome_closure_exec = {&ot_closure, COG_M_EXEC, m_closure_exec};
-cog_object_method ome_closure_hash = {&ot_closure, COG_M_HASH, cog_not_implemented};
+cog_object_method ome_closure_exec = {&ot_closure, "Exec", m_closure_exec};
+cog_object_method ome_closure_hash = {&ot_closure, "Hash", cog_not_implemented};
 
 cog_object* fn_closure_restore_scope() {
     cog_object* old_scope = cog_pop();
@@ -1337,7 +1333,7 @@ cog_object* m_block_exec() {
     cog_push(cog_make_closure(self, COG_GLOBALS.scopes));
     return NULL;
 }
-cog_object_method ome_block_exec = {&ot_block, COG_M_EXEC, m_block_exec};
+cog_object_method ome_block_exec = {&ot_block, "Exec", m_block_exec};
 
 cog_object* m_block_show() {
     cog_object* block = cog_pop();
@@ -1345,8 +1341,8 @@ cog_object* m_block_show() {
     cog_push(cog_sprintf("<Block %O>", block->next));
     return NULL;
 }
-cog_object_method ome_block_show = {&ot_block, COG_M_SHOW, m_block_show};
-cog_object_method ome_block_hash = {&ot_block, COG_M_HASH, cog_not_implemented};
+cog_object_method ome_block_show = {&ot_block, "Show", m_block_show};
+cog_object_method ome_block_hash = {&ot_block, "Hash", cog_not_implemented};
 
 
 
@@ -1382,8 +1378,8 @@ static int64_t reffed(cog_object* obj, cog_object* alist, int64_t* counter) {
     return 0;
 }
 
-static void pr_refs_recursive(cog_object* obj, cog_object* alist, cog_object* stream, int64_t* counter, bool readably) {
-    char buffer[256];
+void cog_print_refs_recursive(cog_object* obj, cog_object* alist, cog_object* stream, int64_t* counter, bool readably) {
+    char buffer[128];
     if (obj == NULL) {
         cog_fputs_imm(stream, "()");
         return;
@@ -1401,20 +1397,34 @@ static void pr_refs_recursive(cog_object* obj, cog_object* alist, cog_object* st
     }
     // TODO: don't special case List
     if (obj->type && obj->type != &cog_ot_list) {
-        // TODO: use COG_M_SHOW_REC if available
+        // Use Show_Recursive if available
+        // (counter alist stream readably self --)
+        cog_object* counter_ptr = cog_make_obj(&cog_ot_pointer);
+        counter_ptr->as_ptr = (void*)counter;
+        cog_push(counter_ptr);
+        cog_push(alist);
+        cog_push(stream);
         cog_push(cog_box_bool(readably));
-        if (cog_same_identifiers(cog_run_well_known(obj, COG_M_SHOW), cog_not_implemented())) {
+        if (cog_same_identifiers(cog_run_well_known(obj, "Show_Recursive"), cog_not_implemented())) {
             cog_pop();
-            snprintf(buffer, sizeof(buffer), "#<%s: %p %p>", obj->type->name, obj->data, obj->next);
-            cog_fputs_imm(stream, buffer);
-        } else {
-            cog_run_well_known_strict(stream, COG_SM_PUTS);
+            cog_pop();
+            cog_pop();
+            cog_pop();
+            // defer to "Show" if that didn't work
+            cog_push(cog_box_bool(readably));
+            if (cog_same_identifiers(cog_run_well_known(obj, "Show"), cog_not_implemented())) {
+                cog_pop();
+                snprintf(buffer, sizeof(buffer), "#<%s: %p %p>", obj->type->name, obj->data, obj->next);
+                cog_fputs_imm(stream, buffer);
+            } else {
+                cog_run_well_known_strict(stream, "Stream::PutString");
+            }
         }
     }
     else {
         cog_fputchar_imm(stream, '(');
         for (;;) {
-            pr_refs_recursive(obj->data, alist, stream, counter, readably);
+            cog_print_refs_recursive(obj->data, alist, stream, counter, readably);
             obj = obj->next;
             int64_t ref = reffed(obj, alist, counter);
             if (ref) {
@@ -1430,7 +1440,7 @@ static void pr_refs_recursive(cog_object* obj, cog_object* alist, cog_object* st
         }
         if (obj) {
             cog_fputs_imm(stream, " . ");
-            pr_refs_recursive(obj, alist, stream, counter, readably);
+            cog_print_refs_recursive(obj, alist, stream, counter, readably);
         }
         cog_fputchar_imm(stream, ')');
     }
@@ -1440,7 +1450,7 @@ void cog_dump(cog_object* obj, cog_object* stream, bool readably) {
     cog_object* alist_header = cog_make_obj(&cog_ot_list);
     int64_t counter = 1;
     cog_walk(obj, make_refs_list, alist_header);
-    pr_refs_recursive(obj, alist_header->data, stream, &counter, readably);
+    cog_print_refs_recursive(obj, alist_header->data, stream, &counter, readably);
 }
 
 // MARK: PARSER
@@ -1528,7 +1538,7 @@ cog_object* fn_parser_handle_token() {
 
     error:
     cog_push(cog_box_bool(true));
-    cog_run_well_known_strict(buffer, COG_M_SHOW);
+    cog_run_well_known_strict(buffer, "Show");
     COG_RETURN_ERROR(cog_sprintf("PARSE ERROR: could not handle token %O", cog_pop()));
 
     retry:
@@ -1597,7 +1607,7 @@ cog_object* fn_parser_nextitem() {
     if (ch != EOF) cog_string_append_byte(&tail, ch);
 
     firstchar:
-    COG_RUN_WKM_RETURN_IF_ERROR(stream, COG_SM_GETCH);
+    COG_RUN_WKM_RETURN_IF_ERROR(stream, "Stream::GetChar");
     cookie->next->next->next->next = cog_pop();
     cookie->next->data = COG_GLOBALS.modules;
 
@@ -2009,8 +2019,8 @@ cog_object* m_def_or_let_exec() {
     cog_defun(symbol, is_def ? value : cog_make_var(value));
     return NULL;
 }
-cog_object_method ome_def_or_let_exec = {&ot_def_or_let_special, COG_M_EXEC, m_def_or_let_exec};
-cog_object_method ome_def_or_let_hash = {&ot_def_or_let_special, COG_M_HASH, cog_not_implemented};
+cog_object_method ome_def_or_let_exec = {&ot_def_or_let_special, "Exec", m_def_or_let_exec};
+cog_object_method ome_def_or_let_hash = {&ot_def_or_let_special, "Hash", cog_not_implemented};
 
 cog_object* m_def_or_let_show() {
     cog_object* self = cog_pop();
@@ -2020,7 +2030,7 @@ cog_object* m_def_or_let_show() {
     cog_push(cog_sprintf("<%s %O>", is_def ? "Def" : "Let", symbol));
     return NULL;
 }
-cog_object_method ome_def_or_let_show = {&ot_def_or_let_special, COG_M_SHOW, m_def_or_let_show};
+cog_object_method ome_def_or_let_show = {&ot_def_or_let_special, "Show", m_def_or_let_show};
 
 cog_object* m_var_run_self() {
     cog_object* self = cog_pop();
@@ -2028,8 +2038,8 @@ cog_object* m_var_run_self() {
     cog_push(self->next);
     return NULL;
 }
-cog_object_method ome_var_exec = {&ot_var, COG_M_EXEC, m_var_run_self};
-cog_object_method ome_var_hash = {&ot_var, COG_M_HASH, cog_not_implemented};
+cog_object_method ome_var_exec = {&ot_var, "Exec", m_var_run_self};
+cog_object_method ome_var_hash = {&ot_var, "Hash", cog_not_implemented};
 
 
 
@@ -2402,7 +2412,7 @@ cog_object* fn_is_io() {
     COG_ENSURE_N_ITEMS(1);
     cog_object* a = cog_pop();
     cog_push(cog_emptystring());
-    cog_object* res = cog_run_well_known(a, COG_SM_PUTS);
+    cog_object* res = cog_run_well_known(a, "Stream::PutString");
     cog_push(cog_box_bool(!cog_same_identifiers(res, cog_not_implemented())));
     return NULL;
 }
@@ -2438,7 +2448,7 @@ cog_object* fn_assert_io() {
     COG_ENSURE_N_ITEMS(1);
     cog_object* a = cog_pop();
     cog_push(cog_emptystring());
-    cog_object* res = cog_run_well_known(a, COG_SM_PUTS);
+    cog_object* res = cog_run_well_known(a, "Stream::PutString");
     if (cog_same_identifiers(res, cog_not_implemented())) {
         cog_push(cog_sprintf("expected IO object, got %s", GET_TYPENAME_STRING(a)));
         return cog_error();
@@ -2856,7 +2866,7 @@ cog_object* m_continuation_exec() {
     cog_push(contval);
     return NULL;
 }
-cog_object_method ome_continuation_exec = {&cog_ot_continuation, COG_M_EXEC, m_continuation_exec};
+cog_object_method ome_continuation_exec = {&cog_ot_continuation, "Exec", m_continuation_exec};
 
 cog_object* fn_begin() {
     COG_ENSURE_N_ITEMS(1);

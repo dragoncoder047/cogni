@@ -69,30 +69,25 @@ struct _cog_modfunc {
     const char* doc;
 };
 
-enum cog_well_known_method {
-    // for all objects
-    COG_M_EXEC, // (cookie self -- ...blah)
-    COG_M_HASH, // (self -- hash)
-    COG_M_SHOW, // (readably self -- string)
-    COG_M_SHOW_REC, // (ctx readably self -- string)
-    COG_M_SERIALIZE, // (self -- buffer)
-    COG_M_UNSERIALIZE, // (buffer trash -- obj)
-    // COG_M_COMPARE, // (other self -- result)
+/*
+    --- for all objects ---
+    Exec: (cookie self -- ...blah)
+    Hash: (self -- hash)
+    Show: (readably self -- string)
+    Show_Recursive: (counter alist stream readably self --)
+    Serialize: (self -- buffer)
+    Unserialize: (buffer trash -- obj)
+    Compare: (other self -- result)
 
-    // for streams
-    COG_SM_GETCH, // (stream -- buffer)
-    COG_SM_PUTS, // (buffer stream -- )
-    COG_SM_UNGETS, // (buffer stream -- )
+    -- for streams --
+    Stream::GetChar: (stream -- buffer)
+    Stream::PutString: (buffer stream -- )
+    Stream::UngetString: (buffer stream -- )
+*/
 
-    // for containers
-    // COG_CM_STORE, // (value indexer self -- )
-    // COG_CM_INDEX, // (indexer self -- value)
-    // COG_CM_GET_LENGTH, // (self -- length)
-    // COG_CM_SPLICE, // (inserted ndelete self -- deleted)
-};
 struct _cog_object_method {
     cog_obj_type* type_for;
-    enum cog_well_known_method wkm;
+    const char* wkm;
     cog_function func;
 };
 
@@ -445,6 +440,7 @@ void cog_fprintf(cog_object* stream, const char* fmt, ...);
  */
 cog_object* cog_sprintf(const char* fmt, ...);
 
+void cog_print_refs_recursive(cog_object*, cog_object*, cog_object*, int64_t*, bool);
 /**
  * Initializes the system.
  */
@@ -460,6 +456,8 @@ void cog_quit();
  * Pushes an object onto the global work stack.
  */
 void cog_push(cog_object*);
+
+cog_object* cog_get_stack();
 
 /**
  * Pops an object from the global work stack.
@@ -496,7 +494,7 @@ void cog_run_next(cog_object*, cog_object*, cog_object*);
  * @return The status returned by running the method.
  * Can be `cog_not_implemented()` if the method isn't defined on this type of object.
  */
-cog_object* cog_run_well_known(cog_object*, enum cog_well_known_method);
+cog_object* cog_run_well_known(cog_object*, const char*);
 
 /**
  * Runs a well-known method on an object, aborting if the method is not implemented.
@@ -504,7 +502,7 @@ cog_object* cog_run_well_known(cog_object*, enum cog_well_known_method);
  * @param meth The method to run.
  * @return The status returned by running the method.
  */
-cog_object* cog_run_well_known_strict(cog_object*, enum cog_well_known_method);
+cog_object* cog_run_well_known_strict(cog_object*, const char*);
 
 /**
  * Runs the main loop of the system until the command queue is empty.
