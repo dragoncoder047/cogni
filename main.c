@@ -100,14 +100,13 @@ int main(int argc, char* argv[]) {
     cog_set_stdin(cog_open_file("/dev/stdin", "r"));
     cog_set_stderr(cog_open_file("/dev/stderr", "w"));
 
-
     cog_object* prelude = cog_string_from_bytes((char*)cognac_src_prelude_cog, cognac_src_prelude_cog_len);
+    cog_object* userscript = NULL;
     if (!run(prelude)) goto end;
     prelude = cog_string_from_bytes((char*)prelude2_cog, prelude2_cog_len);
     if (!run(prelude)) goto end;
 
     // Run user script
-    cog_object* userscript = NULL;
     if (argc == 1) {
         repl();
         goto end;

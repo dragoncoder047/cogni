@@ -6,7 +6,7 @@
 
 static void closefile(cog_object* stream) {
     if (stream->as_ptr) {
-        FILE* f = stream->as_ptr;
+        FILE* f = (FILE*)stream->as_ptr;
         if (f != stdin && f != stdout && f != stderr) {
             fclose(f);
             stream->as_ptr = NULL;
@@ -29,7 +29,7 @@ cog_object* cog_open_file(const char* const filename, const char* const mode) {
 static cog_object* m_file_write() {
     cog_object* file = cog_pop();
     cog_object* buf = cog_pop();
-    FILE* f = file->as_ptr;
+    FILE* f = (FILE*)file->as_ptr;
     while (buf) {
         fprintf(f, "%.*s", buf->stored_chars, buf->as_chars);
         fflush(f);
@@ -41,7 +41,7 @@ cog_object_method ome_file_write = {&ot_file, COG_SM_PUTS, m_file_write};
 
 static cog_object* m_file_getch() {
     cog_object* file = cog_pop();
-    FILE* f = file->as_ptr;
+    FILE* f = (FILE*)file->as_ptr;
     if (feof(f)) cog_push(cog_eof());
     else cog_push(cog_make_character(fgetc(f)));
     return NULL;
@@ -51,7 +51,7 @@ static cog_object_method ome_file_getch = {&ot_file, COG_SM_GETCH, m_file_getch}
 static cog_object* m_file_ungets() {
     cog_object* file = cog_pop();
     cog_object* buf = cog_pop();
-    FILE* f = file->as_ptr;
+    FILE* f = (FILE*)file->as_ptr;
     while (buf) {
         for (int i = 0; i < buf->stored_chars; i++)
             ungetc(buf->as_chars[i], f);
@@ -82,9 +82,9 @@ XXX:                 then why does this not work??
 
 static cog_object* m_file_stringify() {
     cog_object* file = cog_pop();
-    FILE* f = file->as_ptr;
+    FILE* f = (FILE*)file->as_ptr;
     int modes = fcntl(fileno(f), F_GETFL);
-    char* modestr;
+    const char* modestr;
     switch (modes) {
         case O_RDONLY: modestr = "read"; break;
         case O_WRONLY | O_CREAT | O_TRUNC: modestr = "write"; break;
@@ -122,7 +122,7 @@ cog_object* fn_open() {
     cog_object* filename = cog_pop();
     COG_ENSURE_TYPE(mode, &cog_ot_symbol);
     COG_ENSURE_TYPE(filename, &cog_ot_string);
-    char* mod;
+    const char* mod;
     // get the mode
     if (cog_same_identifiers(mode->next, cog_make_identifier_c("read"))) mod = "r";
     else if (cog_same_identifiers(mode->next, cog_make_identifier_c("write"))) mod = "w";
@@ -133,7 +133,7 @@ cog_object* fn_open() {
     else COG_RETURN_ERROR(cog_sprintf("Expected one of \\read, \\write, \\append, \\read-write, \\read-append, \\read-write-existing but got %O", mode));
     // get the filename
     size_t len = cog_strlen(filename);
-    char* buf = alloca(len + 1);
+    char* buf = (char*)alloca(len + 1);
     memset(buf, 0, len + 1);
     cog_string_to_cstring(filename, buf, len);
     FILE* f = fopen(buf, mod);
@@ -152,7 +152,7 @@ cog_object* fn_readfile() {
     fseek(f, 0, SEEK_SET);
     struct stat st;
 	fstat(fileno(f), &st);
-    char* b = alloca(st.st_size + 1);
+    char* b = (char*)alloca(st.st_size + 1);
     memset(b, 0, st.st_size + 1);
     size_t read = fread(b, sizeof(char), st.st_size, f);
     if (read != st.st_size) COG_RETURN_ERROR(cog_sprintf("Couldn't read file %O", file->next));

@@ -244,7 +244,7 @@ void cog_quit() {
 // MARK: MODULES
 
 void free_pointer(cog_object* going) {
-    free(going->as_ptr);
+    free((FILE*)going->as_ptr);
 }
 
 cog_obj_type cog_ot_pointer = {"Pointer", NULL};
@@ -440,7 +440,7 @@ cog_object* cog_run_well_known_strict(cog_object* obj, enum cog_well_known_metho
             case COG_SM_UNGETS: method_name = "COG_SM_UNGETS"; break;
             default: method_name = "UNKNOWN_METHOD"; break;
         }
-        fprintf(stderr, "error: %s not implemented for %s\n", method_name, obj->type ? obj->type->typename : "NULL");
+        fprintf(stderr, "error: %s not implemented for %s\n", method_name, obj->type ? obj->type->name : "NULL");
         COG_ITER_LIST(COG_GLOBALS.modules, modobj) {
             cog_module* mod = (cog_module*)modobj->as_ptr;
             if (mod->types == NULL) continue;
@@ -613,7 +613,7 @@ static bool pack_identifier_c(const char* const buffer, cog_packed_identifier* o
     for (const char* s = buffer; *s; s++, len++) {
         if (len > MAXPACKED) return false;
         // !!! identifiers are case insensitive
-        char* where = strchr(PACKEDALPHABET, tolower(*s));
+        const char* where = strchr(PACKEDALPHABET, tolower(*s));
         if (where == NULL) return false;
         res *= base;
         res += where - PACKEDALPHABET;
@@ -629,7 +629,7 @@ static bool pack_identifier(cog_object* string, cog_packed_identifier* out) {
     size_t base = strlen(PACKEDALPHABET);
     for (size_t i = 0; i < len; i++) {
         // !!! identifiers are case insensitive
-        char* where = strchr(PACKEDALPHABET, tolower(cog_nthchar(string, i)));
+        const char* where = strchr(PACKEDALPHABET, tolower(cog_nthchar(string, i)));
         if (where == NULL) return false;
         res *= base;
         res += where - PACKEDALPHABET;
@@ -1392,7 +1392,7 @@ static void pr_refs_recursive(cog_object* obj, cog_object* alist, cog_object* st
         cog_push(cog_box_bool(readably));
         if (cog_same_identifiers(cog_run_well_known(obj, COG_M_SHOW), cog_not_implemented())) {
             cog_pop();
-            snprintf(buffer, sizeof(buffer), "#<%s: %p %p>", obj->type->typename, obj->data, obj->next);
+            snprintf(buffer, sizeof(buffer), "#<%s: %p %p>", obj->type->name, obj->data, obj->next);
             cog_fputs_imm(stream, buffer);
         } else {
             cog_run_well_known_strict(stream, COG_SM_PUTS);
@@ -1472,22 +1472,26 @@ cog_object* fn_parser_handle_token() {
     cog_object* modlist = cookie->next->data;
     cog_object* buffer = cookie->next->next->data;
     cog_object* index = cookie->next->next->next;
+    cog_module* curr_mod;
+    cog_modfunc* curr_func;
+    cog_object* cookie2;
+    cog_object* res;
     if (!modlist) goto error;
     // handle what's in the buffer
-    cog_module* curr_mod = modlist->data->as_ptr;
+    curr_mod = (cog_module*)modlist->data->as_ptr;
     if (!curr_mod->table) goto nextmod;
-    cog_modfunc* curr_func = curr_mod->table[index->as_int];
+    curr_func = curr_mod->table[index->as_int];
     if (!curr_func) goto nextmod;
     if (curr_func->when != COG_PARSE_TOKEN_HANDLER) goto nextfun;
     if (curr_func->name && buffer->type == &cog_ot_string && cog_strcasecmp_c(buffer, curr_func->name))
         goto nextfun;
     if (curr_func->name && buffer->type != &cog_ot_string) goto nextfun;
 
-    cog_object* cookie2 = cog_make_obj(NULL);
+    cookie2 = cog_make_obj(NULL);
     cookie2->data = buffer;
     cookie2->next = stream;
     cog_push(cookie2);
-    cog_object* res = curr_func->fun();
+    res = curr_func->fun();
     if (cog_same_identifiers(res, cog_not_implemented())) {
         cog_pop();
         if (buffer->type == &cog_ot_string && cog_strlen(buffer) == 0) {
@@ -1533,26 +1537,32 @@ cog_object* fn_parser_nextitem() {
     cog_object* index = cookie->next->next->next->data;
     cog_object* curr_char = cookie->next->next->next->next;
     cog_object* tail = buffer;
+    cog_module* curr_mod;
+    cog_modfunc* curr_func;
+    cog_object* cookie2;
+    cog_object* res;
+    cog_object* old_top;
+    int ch;
 
     if (curr_char->type != &ot_eof && cog_strlen(curr_char) != 1) goto firstchar;
-    int ch = curr_char->type != &ot_eof ? cog_nthchar(curr_char, 0) : EOF;
+    ch = curr_char->type != &ot_eof ? cog_nthchar(curr_char, 0) : EOF;
 
     if (!modlist) goto nextchar;
     // test current character
-    cog_module* curr_mod = modlist->data->as_ptr;
+    curr_mod = (cog_module*)modlist->data->as_ptr;
     if (!curr_mod->table) goto nextmod;
-    cog_modfunc* curr_func = curr_mod->table[index->as_int];
+    curr_func = curr_mod->table[index->as_int];
     if (!curr_func) goto nextmod;
     if (curr_func->when != COG_PARSE_INDIV_CHAR && curr_func->when != COG_PARSE_END_CHAR) goto nextfun;
     if (curr_func->when == COG_PARSE_END_CHAR && cog_strlen(buffer) == 0) goto nextfun;
     if (curr_func->name != NULL && strchr(curr_func->name, ch) == NULL) goto nextfun;
 
-    cog_object* cookie2 = stream;
+    cookie2 = stream;
     cog_push_to(&cookie2, curr_char);
     cog_push_to(&cookie2, buffer);
-    cog_object* old_top = COG_GLOBALS.stack->data;
+    old_top = COG_GLOBALS.stack->data;
     cog_push(cookie2);
-    cog_object* res = curr_func->fun();
+    res = curr_func->fun();
     if (cog_same_identifiers(res, cog_not_implemented())) {
         cog_pop();
         goto nextfun;
@@ -2135,7 +2145,7 @@ cog_modfunc fne_empty = {
     "Return an empty list."
 };
 
-#define GET_TYPENAME_STRING(obj) (obj && obj->type ? obj->type->typename : "NULL")
+#define GET_TYPENAME_STRING(obj) (obj && obj->type ? obj->type->name : "NULL")
 #define _NUMBERBODY(op, either_float_type, both_ints_type, both_ints_cast) \
     COG_ENSURE_N_ITEMS(2); \
     cog_object* a = cog_pop(); \
@@ -3072,7 +3082,7 @@ void vprint_inner(cog_object* stream, const char* fmt, va_list args) {
     const char* p = fmt;
     while (*p) {
         // find index of first '%'
-        char* first_fmt = strchr(p, '%');
+        const char* first_fmt = strchr(p, '%');
         if (first_fmt == NULL) {
             // no more format strings
             char* s;

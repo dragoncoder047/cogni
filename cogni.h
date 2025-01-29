@@ -19,17 +19,17 @@ extern "C" {
 
 // MARK: TYPES N' STUFF
 
-typedef struct cog_object cog_object;
-typedef const struct cog_module cog_module;
-typedef const struct cog_obj_type cog_obj_type;
-typedef const struct cog_modfunc cog_modfunc;
-typedef const struct cog_object_method cog_object_method;
+typedef struct _cog_object cog_object;
+typedef const struct _cog_module cog_module;
+typedef const struct _cog_obj_type cog_obj_type;
+typedef const struct _cog_modfunc cog_modfunc;
+typedef const struct _cog_object_method cog_object_method;
 
 typedef uint64_t cog_packed_identifier;
 
 typedef cog_object* (*cog_function)();
 
-struct cog_object {
+struct _cog_object {
     cog_obj_type* type;
     bool marked;
     union {
@@ -49,8 +49,8 @@ static_assert(offsetof(cog_object, as_chars) + COG_MAX_CHARS_PER_BUFFER_CHUNK + 
 typedef bool (*cog_walk_fun)(cog_object* walking, cog_object* cookie);
 typedef bool (*cog_chk_eq_fun)(cog_object* a, cog_object* b);
 
-struct cog_obj_type {
-    const char* const typename;
+struct _cog_obj_type {
+    const char* name;
     cog_object* (*walk)(cog_object* obj, cog_walk_fun recurse, cog_object* arg);
     void (*destroy)(cog_object* obj);
 };
@@ -62,11 +62,11 @@ enum cog_api_func_phase {
     COG_PARSE_INDIV_CHAR, // (stream ch -- ...any)
     COG_PARSE_END_CHAR, // (stream ch -- ...any)
 };
-struct cog_modfunc {
-    const char* const name;
+struct _cog_modfunc {
+    const char* name;
     enum cog_api_func_phase when;
     cog_function fun;
-    const char* const doc;
+    const char* doc;
 };
 
 enum cog_well_known_method {
@@ -90,14 +90,14 @@ enum cog_well_known_method {
     // COG_CM_GET_LENGTH, // (self -- length)
     // COG_CM_SPLICE, // (inserted ndelete self -- deleted)
 };
-struct cog_object_method {
+struct _cog_object_method {
     cog_obj_type* type_for;
     enum cog_well_known_method wkm;
     cog_function func;
 };
 
-struct cog_module {
-    const char* const modname;
+struct _cog_module {
+    const char* modname;
     cog_modfunc** table;
     cog_object_method** mtab;
     cog_obj_type** types;
@@ -199,7 +199,7 @@ bool cog_unbox_bool(cog_object*);
  * Creates a identifier from a C string. The identifier may be a packed identifier, a long
  * identifier, or a builtin identifier as are available.
  */
-cog_object* cog_make_identifier_c(const char* const s);
+cog_object* cog_make_identifier_c(const char* s);
 
 /**
  * Same as `cog_make_identifier_c` except uses an existing Cognate string.
@@ -241,12 +241,12 @@ int cog_strcasecmp(cog_object*, cog_object*);
  * @return A negative number if str1 comes before str2, zero if they are equal, or
  * a positive number if str2 comes before str1.
  */
-int cog_strcmp_c(cog_object*, const char* const str2);
+int cog_strcmp_c(cog_object*, const char* str2);
 
 /**
  * Same as `cog_strcmp_c` except ignores case.
  */
-int cog_strcasecmp_c(cog_object*, const char* const str2);
+int cog_strcasecmp_c(cog_object*, const char* str2);
 
 /**
  * Concatenates two strings. The input strings are not modified, but the returned string
@@ -257,7 +257,7 @@ cog_object* cog_strappend(cog_object*, cog_object*);
 /**
  * Creates a string from a C string.
  */
-cog_object* cog_string(const char* const s);
+cog_object* cog_string(const char* s);
 
 /**
  * Puts the string into the given C buffer, and returns the number of characters stored.
@@ -269,7 +269,7 @@ size_t cog_string_to_cstring(cog_object*, char* const cstr, size_t);
 /**
  * Creates a string from a C char array with a known length.
  */
-cog_object* cog_string_from_bytes(const char* const cstr, size_t);
+cog_object* cog_string_from_bytes(const char* cstr, size_t);
 
 /**
  * Creates an empty string.
@@ -340,7 +340,7 @@ void cog_fputchar_imm(cog_object*, char);
 /**
  * Writes a literal C string to a stream.
  */
-void cog_fputs_imm(cog_object*, const char* const s);
+void cog_fputs_imm(cog_object*, const char* s);
 
 /**
  * Wraps a `cog_modfunc*` into an object that can be run.
@@ -637,7 +637,7 @@ extern cog_obj_type cog_ot_continuation;
     do { \
         if ((obj) == NULL || (obj)->type != typeobj) { \
             COG_RETURN_ERROR(cog_sprintf("Expected %s, but got %s", \
-                (typeobj) ? (typeobj)->typename : "NULL", (obj) && (obj)->type ? (obj)->type->typename : "NULL")); \
+                (typeobj) ? (typeobj)->name : "NULL", (obj) && (obj)->type ? (obj)->type->name : "NULL")); \
         } \
     } while (0)
 
@@ -647,7 +647,7 @@ extern cog_obj_type cog_ot_continuation;
 #define COG_ENSURE_LIST(obj) \
     do { \
         if ((obj) && (obj)->type) { \
-            COG_RETURN_ERROR(cog_sprintf("Expected list, but got %s", (obj) ? (obj)->type->typename : "NULL")); \
+            COG_RETURN_ERROR(cog_sprintf("Expected list, but got %s", (obj) ? (obj)->type->name : "NULL")); \
         } \
     } while (0)
 
@@ -657,7 +657,7 @@ extern cog_obj_type cog_ot_continuation;
 #define COG_GET_NUMBER(obj, var) \
     do { \
         if ((obj) == NULL || ((obj)->type != &cog_ot_int && (obj)->type != &cog_ot_float)) { \
-            COG_RETURN_ERROR(cog_sprintf("Expected a number, but got %s", (obj) ? (obj)->type->typename : "NULL")); \
+            COG_RETURN_ERROR(cog_sprintf("Expected a number, but got %s", (obj) ? (obj)->type->name : "NULL")); \
         } \
         else var = (obj)->type == &cog_ot_float ? (obj)->as_float : (obj)->as_int; \
     } while (0)
