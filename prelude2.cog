@@ -1,15 +1,3 @@
-~~ implemented in Cognate here because I couldn't get it to work in C
-Def List as (
-    Def F;
-    Let S be the current Stack;
-    Clear the stack;
-    run F to fill the stack;
-    Let L be the new Stack;
-    Clear the stack;
-    For each in Reverse S do (); ~~ put the old stack back
-    L ~~ put the list on the stack
-);
-
 ~~ helper for from inside ==
 Def SameLists as (
     Let L1 be List!;

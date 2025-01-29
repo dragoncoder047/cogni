@@ -585,6 +585,7 @@ cog_object* cog_hash(cog_object* obj);
 
 extern cog_obj_type cog_ot_pointer;
 extern cog_obj_type cog_ot_owned_pointer;
+extern cog_obj_type cog_ot_list;
 extern cog_obj_type cog_ot_symbol;
 extern cog_obj_type cog_ot_identifier;
 extern cog_obj_type cog_ot_string;
@@ -646,9 +647,7 @@ extern cog_obj_type cog_ot_continuation;
  */
 #define COG_ENSURE_LIST(obj) \
     do { \
-        if ((obj) && (obj)->type) { \
-            COG_RETURN_ERROR(cog_sprintf("Expected list, but got %s", (obj) ? (obj)->type->name : "NULL")); \
-        } \
+        if (obj) COG_ENSURE_TYPE((obj), &cog_ot_list); \
     } while (0)
 
 /**

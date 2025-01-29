@@ -256,7 +256,7 @@ void cog_add_module(cog_module* module) {
     cog_push_to(&COG_GLOBALS.modules, modobj);
 }
 
-// MARK: UTILITY / LISTS
+// MARK: UTILITY
 
 cog_object* cog_expect_type_fatal(cog_object* obj, cog_obj_type* t) {
     assert(obj->type == t);
@@ -275,8 +275,12 @@ bool cog_same_pointer(cog_object* a, cog_object* b) {
     return a == b;
 }
 
+// MARK: LISTS
+
+cog_obj_type cog_ot_list = {"List", cog_walk_both, NULL};
+
 void cog_push_to(cog_object** stack, cog_object* item) {
-    cog_object* cell = cog_make_obj(NULL);
+    cog_object* cell = cog_make_obj(&cog_ot_list);
     cell->data = item;
     cell->next = *stack;
     *stack = cell;
@@ -344,7 +348,7 @@ void cog_defun(cog_object* identifier, cog_object* value) {
     if (pair) {
         pair->next = value;
     } else {
-        pair = cog_make_obj(NULL);
+        pair = cog_make_obj(&cog_ot_list);
         pair->data = identifier;
         pair->next = value;
         cog_push_to(&COG_GLOBALS.scopes->data, pair);
@@ -364,7 +368,7 @@ cog_object* cog_get_fun(cog_object* identifier, bool* found) {
 }
 
 void cog_push_new_scope() {
-    cog_push_scope(cog_make_obj(NULL));
+    cog_push_scope(cog_make_obj(&cog_ot_list));
 }
 
 void cog_push_scope(cog_object* scope) {
@@ -1153,7 +1157,7 @@ cog_obj_type ot_iostring = {"IOString", cog_walk_both, NULL};
 cog_object* cog_empty_io_string() {
     cog_object* stream = cog_make_obj(&ot_iostring);
     stream->data = cog_box_int(0); // the cursor position
-    stream->next = cog_make_obj(NULL);
+    stream->next = cog_make_obj(&cog_ot_list);
     stream->next->data = cog_emptystring(); // the ungetc stack
     stream->next->next = cog_emptystring(); // the actual contents
     return stream;
@@ -1265,7 +1269,7 @@ cog_obj_type ot_block = {"Block", cog_walk_only_next, NULL};
 cog_obj_type ot_closure = {"Closure", cog_walk_both, NULL};
 
 cog_object* cog_make_block(cog_object* commands) {
-    assert(!commands || !commands->type);
+    assert(!commands || commands->type == &cog_ot_list);
     cog_object* obj = cog_make_obj(&ot_block);
     obj->next = commands;
     return obj;
@@ -1273,7 +1277,7 @@ cog_object* cog_make_block(cog_object* commands) {
 
 cog_object* cog_make_closure(cog_object* block, cog_object* scopes) {
     assert(block && block->type == &ot_block);
-    assert(!scopes || !scopes->type);
+    assert(!scopes || scopes->type == &cog_ot_list);
     cog_object* obj = cog_make_obj(&ot_closure);
     obj->data = block;
     obj->next = scopes;
@@ -1354,7 +1358,7 @@ static bool make_refs_list(cog_object* obj, cog_object* alist_header) {
         entry->next = cog_box_int(2);
         return false;
     }
-    cog_object* pair = cog_make_obj(NULL);
+    cog_object* pair = cog_make_obj(&cog_ot_list);
     pair->data = obj;
     pair->next = cog_box_int(1);
     cog_push_to(&alist_header->data, pair);
@@ -1395,7 +1399,8 @@ static void pr_refs_recursive(cog_object* obj, cog_object* alist, cog_object* st
         snprintf(buffer, sizeof(buffer), "#%" PRId64 "=", ref);
         cog_fputs_imm(stream, buffer);
     }
-    if (obj->type) {
+    // TODO: don't special case List
+    if (obj->type && obj->type != &cog_ot_list) {
         // TODO: use COG_M_SHOW_REC if available
         cog_push(cog_box_bool(readably));
         if (cog_same_identifiers(cog_run_well_known(obj, COG_M_SHOW), cog_not_implemented())) {
@@ -1432,7 +1437,7 @@ static void pr_refs_recursive(cog_object* obj, cog_object* alist, cog_object* st
 }
 
 void cog_dump(cog_object* obj, cog_object* stream, bool readably) {
-    cog_object* alist_header = cog_make_obj(NULL);
+    cog_object* alist_header = cog_make_obj(&cog_ot_list);
     int64_t counter = 1;
     cog_walk(obj, make_refs_list, alist_header);
     pr_refs_recursive(obj, alist_header->data, stream, &counter, readably);
@@ -1495,7 +1500,7 @@ cog_object* fn_parser_handle_token() {
         goto nextfun;
     if (curr_func->name && buffer->type != &cog_ot_string) goto nextfun;
 
-    cookie2 = cog_make_obj(NULL);
+    cookie2 = cog_make_obj(&cog_ot_list);
     cookie2->data = buffer;
     cookie2->next = stream;
     cog_push(cookie2);
@@ -2222,7 +2227,7 @@ cog_object* fn_eq() {
                 result = cog_same_identifiers(a->next, b->next);
             } else if (a->type == &cog_ot_string) {
                 result = (cog_strcmp(a, b) == 0);
-            } else if (a->type == NULL) {
+            } else if (a->type == &cog_ot_list) {
                 cog_push(b);
                 cog_push(a);
                 cog_run_next(cog_make_identifier_c("SameLists"), NULL, NULL);
@@ -2368,7 +2373,7 @@ cog_modfunc fne_is_number = {"Number?", COG_FUNC, fn_is_number, "Return true if 
 
 cog_object* fn_is_symbol() { _TYPEP_BODY(,&cog_ot_symbol) }
 cog_object* fn_is_integer() { _TYPEP_BODY(,&cog_ot_int || (a->type == &cog_ot_float && a->as_float == floor(a->as_float))) }
-cog_object* fn_is_list() { _TYPEP_BODY(!a ||,NULL) }
+cog_object* fn_is_list() { _TYPEP_BODY(!a ||, &cog_ot_list) }
 cog_object* fn_is_string() { _TYPEP_BODY(,&cog_ot_string) }
 cog_object* fn_is_block() { _TYPEP_BODY(,&ot_closure) }
 cog_object* fn_is_boolean() { _TYPEP_BODY(,&cog_ot_bool) }
@@ -2484,7 +2489,7 @@ cog_object* fn_push() {
     cog_push(b);
     return NULL;
 }
-cog_modfunc fne_push = {"Push", COG_FUNC, fn_push, "Push an item onto a list."};
+cog_modfunc fne_push = {"Push", COG_FUNC, fn_push, "Push an item onto a list and return the new list."};
 
 cog_object* fn_is_empty() {
     COG_ENSURE_N_ITEMS(1);
@@ -2664,6 +2669,26 @@ cog_object* fn_error() {
 }
 cog_modfunc fne_error = {"Error", COG_FUNC, fn_error, "Raise an error with a message."};
 
+cog_object* fn_list() {
+    COG_ENSURE_N_ITEMS(1);
+    cog_object* block = cog_pop();
+    COG_ENSURE_TYPE(block, &ot_closure);
+    cog_run_next(cog_make_identifier_c("[[List::Finish]]"), NULL, COG_GLOBALS.stack);
+    cog_run_next(block, NULL, NULL);
+    COG_GLOBALS.stack = NULL;
+    return NULL;
+}
+cog_modfunc fne_list = {"List", COG_FUNC, fn_list, "Create a list by using the stack created by a block."};
+
+cog_object* fn_list_finish() {
+    cog_object* old_stack = cog_pop();
+    cog_object* list = COG_GLOBALS.stack;
+    COG_GLOBALS.stack = old_stack;
+    cog_push(list);
+    return NULL;
+}
+cog_modfunc fne_list_finish = {"[[List::Finish]]", COG_COOKIEFUNC, fn_list_finish, NULL};
+
 cog_object* fn_number() {
     COG_ENSURE_N_ITEMS(1);
     cog_object* a = cog_pop();
@@ -2809,7 +2834,7 @@ cog_obj_type cog_ot_continuation = {"Continuation", cog_walk_both, NULL};
 cog_object* cog_make_continuation() {
     cog_object* c = cog_make_obj(&cog_ot_continuation);
     c->data = COG_GLOBALS.stack;
-    c->next = cog_make_obj(NULL);
+    c->next = cog_make_obj(&cog_ot_list);
     c->next->data = COG_GLOBALS.command_queue;
     c->next->next = COG_GLOBALS.scopes;
     return c;
@@ -2940,6 +2965,8 @@ static cog_modfunc* builtin_modfunc_table[] = {
     &fne_print,
     &fne_put,
     // list functions
+    &fne_list,
+    &fne_list_finish,
     &fne_first,
     &fne_rest,
     &fne_push,
@@ -2952,7 +2979,6 @@ static cog_modfunc* builtin_modfunc_table[] = {
     &fne_split,
     &fne_lowercase,
     &fne_uppercase,
-    // list functions
     // box functions
     &fne_box,
     &fne_unbox,
@@ -3014,6 +3040,7 @@ static cog_object_method* builtin_objfunc_table[] = {
 static cog_obj_type* builtin_types[] = {
     &cog_ot_pointer,
     &cog_ot_owned_pointer,
+    &cog_ot_list,
     &cog_ot_int,
     &cog_ot_bool,
     &cog_ot_float,
