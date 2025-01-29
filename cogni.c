@@ -1425,7 +1425,7 @@ static void pr_refs_recursive(cog_object* obj, cog_object* alist, cog_object* st
                 }
                 break;
             }
-            if (obj && obj->type == NULL) cog_fputchar_imm(stream, ' ');
+            if (obj && (obj->type && obj->type == &cog_ot_list)) cog_fputchar_imm(stream, ' ');
             else break;
         }
         if (obj) {
