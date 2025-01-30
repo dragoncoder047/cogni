@@ -640,7 +640,7 @@ static cog_object* m_int_hash() {
 }
 cog_object_method ome_int_hash = {&cog_ot_int, "Hash", m_int_hash};
 
-static cog_object* m_int_equal_wrong_type() {
+static cog_object* m_int_equal_other_type() {
     cog_object* self = cog_pop();
     cog_object* other = cog_pop();
     if (other->type == &cog_ot_float) {
@@ -649,7 +649,7 @@ static cog_object* m_int_equal_wrong_type() {
     }
     return cog_not_implemented();
 }
-cog_object_method ome_int_equal_wrong_type = {&cog_ot_int, "Equal_WrongType", m_int_equal_wrong_type};
+cog_object_method ome_int_equal_other_type = {&cog_ot_int, "Equal_OtherType", m_int_equal_other_type};
 
 cog_obj_type cog_ot_bool = {"Boolean", NULL};
 cog_object* cog_box_bool(bool i) {
@@ -712,7 +712,7 @@ static cog_object* m_float_hash() {
 }
 cog_object_method ome_float_hash = {&cog_ot_float, "Hash", m_float_hash};
 
-static cog_object* m_float_equal_wrong_type() {
+static cog_object* m_float_equal_other_type() {
     cog_object* self = cog_pop();
     cog_object* other = cog_pop();
     if (other->type == &cog_ot_int) {
@@ -721,7 +721,7 @@ static cog_object* m_float_equal_wrong_type() {
     }
     return cog_not_implemented();
 }
-cog_object_method ome_float_equal_wrong_type = {&cog_ot_float, "Equal_WrongType", m_float_equal_wrong_type};
+cog_object_method ome_float_equal_other_type = {&cog_ot_float, "Equal_OtherType", m_float_equal_other_type};
 
 // MARK: IDENTIFIERS
 
@@ -2323,10 +2323,10 @@ cog_object* fn_eq() {
     cog_object* b = cog_pop();
     if (a && b && a->type != b->type) {
         cog_push(b);
-        if (cog_same_identifiers(cog_run_well_known(a, "Equal_WrongType"), cog_not_implemented())) {
+        if (cog_same_identifiers(cog_run_well_known(a, "Equal_OtherType"), cog_not_implemented())) {
             cog_pop();
             cog_push(a);
-            if (cog_same_identifiers(cog_run_well_known(b, "Equal_WrongType"), cog_not_implemented())) {
+            if (cog_same_identifiers(cog_run_well_known(b, "Equal_OtherType"), cog_not_implemented())) {
                 cog_pop();
                 cog_push(cog_box_bool(false));
             }
@@ -3136,8 +3136,8 @@ static cog_object_method* builtin_objfunc_table[] = {
     &ome_list_show_recursive,
     &ome_box_show_recursive,
     &ome_list_hash,
-    &ome_int_equal_wrong_type,
-    &ome_float_equal_wrong_type,
+    &ome_int_equal_other_type,
+    &ome_float_equal_other_type,
     NULL
 };
 
