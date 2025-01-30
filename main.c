@@ -26,9 +26,9 @@ cog_modfunc* m_test_table[] = {
 
 cog_module test = {"Test", m_test_table, NULL, NULL};
 
-bool do_top(cog_object* cookie, cog_object* status) {
+bool do_top(cog_object* cookie) {
     cog_run_next(cog_pop(), NULL, cookie);
-    cog_object* end_status = cog_mainloop(status);
+    cog_object* end_status = cog_mainloop(NULL);
 
     if (cog_same_identifiers(end_status, cog_error())) {
         cog_object* msg = cog_pop();
@@ -43,11 +43,11 @@ bool run(cog_object* obj) {
     // parse it
     cog_push(obj);
     cog_push(cog_make_identifier_c("Parse"));
-    if (!do_top(NULL, NULL)) return false;
+    if (!do_top(NULL)) return false;
     // run the block to make it into a closure
-    if (!do_top(NULL, NULL)) return false;
+    if (!do_top(NULL)) return false;
     // Then run the closure
-    if (!do_top(cog_box_bool(false), NULL)) return false;
+    if (!do_top(cog_box_bool(false))) return false;
     return true;
 }
 
@@ -89,7 +89,8 @@ void repl() {
             }
         } else {
             cog_push(cog_string("Interrupted!"));
-            do_top(NULL, cog_error());
+            cog_push(cog_make_identifier_c("Error"));
+            do_top(NULL);
         }
         if (is_end) {
             the_string = cog_emptystring();

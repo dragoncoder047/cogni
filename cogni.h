@@ -441,6 +441,8 @@ void cog_fprintf(cog_object* stream, const char* fmt, ...);
 cog_object* cog_sprintf(const char* fmt, ...);
 
 void cog_print_refs_recursive(cog_object*, cog_object*, cog_object*, int64_t*, bool);
+int64_t cog_rec_get_refnum(cog_object*, cog_object*, int64_t*);
+
 /**
  * Initializes the system.
  */
@@ -503,6 +505,8 @@ cog_object* cog_run_well_known(cog_object*, const char*);
  * @return The status returned by running the method.
  */
 cog_object* cog_run_well_known_strict(cog_object*, const char*);
+
+bool cog_has_well_known(cog_object*, const char*);
 
 /**
  * Runs the main loop of the system until the command queue is empty.

@@ -336,9 +336,41 @@ void cog_reverse_list_inplace(cog_object** list) {
 
 cog_object* cog_hash(cog_object* obj) {
     cog_object* ret = cog_run_well_known(obj, "Hash");
-    if (cog_same_identifiers(cog_not_implemented(), ret)) return ret;
+    if (cog_same_identifiers(cog_not_implemented(), ret)) return NULL;
     return cog_pop();
 }
+
+cog_object* m_list_show_recursive() {
+    cog_object* obj = cog_pop();
+    bool readably = cog_expect_type_fatal(cog_pop(), &cog_ot_bool)->as_int;
+    cog_object* stream = cog_pop();
+    cog_object* alist = cog_pop();
+    int64_t* counter = (int64_t*)cog_pop()->as_ptr;
+
+    cog_fputchar_imm(stream, '(');
+    for (;;) {
+        cog_print_refs_recursive(obj->data, alist, stream, counter, readably);
+        obj = obj->next;
+        int64_t ref = cog_rec_get_refnum(obj, alist, counter);
+        if (ref) {
+            if (ref > 0) {
+                // reset the ref so it will print properly after the .
+                cog_assoc(alist, obj, cog_same_pointer)->data = cog_box_int(ref);
+                (*counter)--;
+            }
+            break;
+        }
+        if (obj && (obj->type && obj->type == &cog_ot_list)) cog_fputchar_imm(stream, ' ');
+        else break;
+    }
+    if (obj) {
+        cog_fputs_imm(stream, " . ");
+        cog_print_refs_recursive(obj, alist, stream, counter, readably);
+    }
+    cog_fputchar_imm(stream, ')');
+    return NULL;
+}
+cog_object_method ome_list_show_recursive = {&cog_ot_list, "Show_Recursive", m_list_show_recursive};
 
 // MARK: ENVIRONMENT
 
@@ -416,6 +448,19 @@ void cog_run_next(cog_object* item, cog_object* when, cog_object* cookie) {
     cog_push_to(&cookie, item);
     cog_push_to(&cookie, when);
     cog_push_to(&COG_GLOBALS.command_queue, cookie);
+}
+
+bool cog_has_well_known(cog_object* obj, const char* meth) {
+    assert(obj != NULL);
+    COG_ITER_LIST(COG_GLOBALS.modules, modobj) {
+        cog_module* mod = (cog_module*)modobj->as_ptr;
+        if (mod->mtab == NULL) continue;
+        for (size_t i = 0; mod->mtab[i] != NULL; i++) {
+            cog_object_method* m = mod->mtab[i];
+            if (strcmp(m->wkm, meth) == 0 && m->type_for == obj->type) return true;
+        }
+    }
+    return false;
 }
 
 cog_object* cog_run_well_known(cog_object* obj, const char* meth) {
@@ -1358,11 +1403,10 @@ static bool make_refs_list(cog_object* obj, cog_object* alist_header) {
     pair->data = obj;
     pair->next = cog_box_int(1);
     cog_push_to(&alist_header->data, pair);
-    // plain cons cells are the only "interesting" thing
-    return obj->type == NULL;
+    return cog_has_well_known(obj, "Show_Recursive");
 }
 
-static int64_t reffed(cog_object* obj, cog_object* alist, int64_t* counter) {
+int64_t cog_rec_get_refnum(cog_object* obj, cog_object* alist, int64_t* counter) {
     cog_object* entry = cog_assoc(alist, obj, cog_same_pointer);
     if (entry) {
         int64_t value = entry->next->as_int;
@@ -1379,13 +1423,13 @@ static int64_t reffed(cog_object* obj, cog_object* alist, int64_t* counter) {
 }
 
 void cog_print_refs_recursive(cog_object* obj, cog_object* alist, cog_object* stream, int64_t* counter, bool readably) {
-    char buffer[128];
+    char buffer[256];
     if (obj == NULL) {
-        cog_fputs_imm(stream, "()");
+        cog_fputs_imm(stream, "nil");
         return;
     }
     // test if it's in the table
-    int64_t ref = reffed(obj, alist, counter);
+    int64_t ref = cog_rec_get_refnum(obj, alist, counter);
     if (ref < 0) {
         snprintf(buffer, sizeof(buffer), "#%" PRId64 "#", -ref);
         cog_fputs_imm(stream, buffer);
@@ -1395,54 +1439,27 @@ void cog_print_refs_recursive(cog_object* obj, cog_object* alist, cog_object* st
         snprintf(buffer, sizeof(buffer), "#%" PRId64 "=", ref);
         cog_fputs_imm(stream, buffer);
     }
-    // TODO: don't special case List
-    if (obj->type && obj->type != &cog_ot_list) {
-        // Use Show_Recursive if available
-        // (counter alist stream readably self --)
-        cog_object* counter_ptr = cog_make_obj(&cog_ot_pointer);
-        counter_ptr->as_ptr = (void*)counter;
-        cog_push(counter_ptr);
-        cog_push(alist);
-        cog_push(stream);
+    // Use Show_Recursive if available
+    cog_object* counter_ptr = cog_make_obj(&cog_ot_pointer);
+    counter_ptr->as_ptr = (void*)counter;
+    cog_push(counter_ptr);
+    cog_push(alist);
+    cog_push(stream);
+    cog_push(cog_box_bool(readably));
+    if (cog_same_identifiers(cog_run_well_known(obj, "Show_Recursive"), cog_not_implemented())) {
+        cog_pop();
+        cog_pop();
+        cog_pop();
+        cog_pop();
+        // defer to Show if that didn't work
         cog_push(cog_box_bool(readably));
-        if (cog_same_identifiers(cog_run_well_known(obj, "Show_Recursive"), cog_not_implemented())) {
+        if (cog_same_identifiers(cog_run_well_known(obj, "Show"), cog_not_implemented())) {
             cog_pop();
-            cog_pop();
-            cog_pop();
-            cog_pop();
-            // defer to "Show" if that didn't work
-            cog_push(cog_box_bool(readably));
-            if (cog_same_identifiers(cog_run_well_known(obj, "Show"), cog_not_implemented())) {
-                cog_pop();
-                snprintf(buffer, sizeof(buffer), "#<%s: %p %p>", obj->type->name, obj->data, obj->next);
-                cog_fputs_imm(stream, buffer);
-            } else {
-                cog_run_well_known_strict(stream, "Stream::PutString");
-            }
+            snprintf(buffer, sizeof(buffer), "#<%s: %p %p>", obj->type ? obj->type->name : "NULL", obj->data, obj->next);
+            cog_fputs_imm(stream, buffer);
+        } else {
+            cog_run_well_known_strict(stream, "Stream::PutString");
         }
-    }
-    else {
-        cog_fputchar_imm(stream, '(');
-        for (;;) {
-            cog_print_refs_recursive(obj->data, alist, stream, counter, readably);
-            obj = obj->next;
-            int64_t ref = reffed(obj, alist, counter);
-            if (ref) {
-                if (ref > 0) {
-                    // reset the ref so it will print properly after the .
-                    cog_assoc(alist, obj, cog_same_pointer)->data = cog_box_int(ref);
-                    (*counter)--;
-                }
-                break;
-            }
-            if (obj && (obj->type && obj->type == &cog_ot_list)) cog_fputchar_imm(stream, ' ');
-            else break;
-        }
-        if (obj) {
-            cog_fputs_imm(stream, " . ");
-            cog_print_refs_recursive(obj, alist, stream, counter, readably);
-        }
-        cog_fputchar_imm(stream, ')');
     }
 }
 
@@ -2761,6 +2778,21 @@ static cog_object* _box(cog_object* what) {
     return b;
 }
 
+cog_object* m_box_show_recursive() {
+    cog_object* box = cog_pop();
+    bool readably = cog_expect_type_fatal(cog_pop(), &cog_ot_bool)->as_int;
+    cog_object* stream = cog_pop();
+    cog_object* alist = cog_pop();
+    int64_t* counter = (int64_t*)cog_pop()->as_ptr;
+
+    cog_fputchar_imm(stream, '[');
+    cog_print_refs_recursive(box->next, alist, stream, counter, readably);
+    cog_fputchar_imm(stream, ']');
+
+    return NULL;
+}
+cog_object_method ome_box_show_recursive = {&ot_box, "Show_Recursive", m_box_show_recursive};
+
 cog_object* fn_box() {
     COG_ENSURE_N_ITEMS(1);
     cog_push(_box(cog_pop()));
@@ -3044,6 +3076,8 @@ static cog_object_method* builtin_objfunc_table[] = {
     &ome_def_or_let_hash,
     &ome_var_hash,
     &ome_continuation_exec,
+    &ome_list_show_recursive,
+    &ome_box_show_recursive,
     NULL
 };
 
