@@ -1393,6 +1393,8 @@ cog_object_method ome_block_hash = {&ot_block, "Hash", cog_not_implemented};
 
 // MARK: DUMPER
 
+static bool in_dumper = false;
+
 static bool make_refs_list(cog_object* obj, cog_object* alist_header) {
     cog_object* entry = cog_assoc(alist_header->data, obj, cog_same_pointer);
     if (entry) {
@@ -1464,10 +1466,18 @@ void cog_print_refs_recursive(cog_object* obj, cog_object* alist, cog_object* st
 }
 
 void cog_dump(cog_object* obj, cog_object* stream, bool readably) {
+    if (in_dumper) {
+        fprintf(stderr, "Can't use cog_dump() or anything that calls it (like cog_sprintf() "
+                        "with %%O) recursively. Please construct the string manually.\n");
+        print_backtrace();
+        abort();
+    }
+    in_dumper = true;
     cog_object* alist_header = cog_make_obj(&cog_ot_list);
     int64_t counter = 1;
     cog_walk(obj, make_refs_list, alist_header);
     cog_print_refs_recursive(obj, alist_header->data, stream, &counter, readably);
+    in_dumper = false;
 }
 
 // MARK: PARSER

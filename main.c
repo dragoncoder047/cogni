@@ -95,7 +95,9 @@ void repl() {
         if (is_end) {
             the_string = cog_emptystring();
             prompt = "cognate> ";
-            cog_printf("Stack: %O\n", cog_get_stack());
+            cog_object* the_stack = cog_get_stack();
+            if (the_stack) cog_printf("Stack: %O\n", the_stack);
+            else printf("Stack empty\n");
         }
     }
 }
