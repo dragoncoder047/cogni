@@ -27,18 +27,18 @@
 #endif
 
 #ifndef FNV_PRIME
-#define FNV_PRIME 1099511628211LL
+#define FNV_PRIME 0x100000001B3LL
 #endif
 
 #ifndef IDENT_HASH_SEED
-#define IDENT_HASH_SEED 14695981039346656035ULL
+#define IDENT_HASH_SEED 0xCBF29CE484222323ULL
 #endif
 
 #ifndef SYM_HASH_SEED
-#define SYM_HASH_SEED 14695981039346656037ULL
+#define SYM_HASH_SEED 0xCBF29CE484222325ULL
 #endif
 #ifndef STRING_HASH_SEED
-#define STRING_HASH_SEED 14695981039346656039ULL
+#define STRING_HASH_SEED 0xCBF29CE484222327ULL
 #endif
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
@@ -397,6 +397,12 @@ cog_object_method ome_list_hash = {&cog_ot_list, "Hash", m_list_hash};
 
 // MARK: TABLES
 
+cog_obj_type cog_ot_table = {"Table", cog_walk_only_next, NULL};
+
+cog_object* cog_emptytab() {
+    return cog_make_obj(&cog_ot_table);
+}
+
 cog_object* cog_hash(cog_object* obj) {
     if (!obj) return cog_box_int(0);
     if (cog_same_identifiers(cog_run_well_known(obj, "Hash"), cog_not_implemented()))
@@ -417,22 +423,118 @@ static cog_object* _mktable(cog_object* key, cog_object* val, cog_object* left, 
     return a;
 }
 
-cog_object* cog_table_clone(cog_object* tab) {
-    if (!tab) return NULL;
-    return _mktable(
-        tab->data->data,
-        tab->data->next,
-        cog_table_clone(tab->next->data),
-        cog_table_clone(tab->next->next));
+#define TKEY data->data
+#define TVAL data->next
+#define TLEFT next->data
+#define TRIGHT next->next
+
+static cog_object* _wraptab(cog_object* tree) {
+    cog_object* tab = cog_emptytab();
+    tab->next = tree;
+    return tab;
 }
 
-static cog_object* _iou_helper(cog_object* tab, int64_t rem_hash) {
+static cog_object* _iou_helper(cog_object* tree, cog_object* key, cog_object* val, int64_t hash) {
+    if (!tree) {
+        // we got to the end without finding a existing node, so add a new one
+        return _mktable(key, val, NULL, NULL);
+    }
+    bool is_left = hash & 1;
+    int64_t rest_hash = hash >> 1;
+    if (cog_equal(tree->TKEY, key)) {
+        // update this node
+        return _mktable(tree->TKEY, val, tree->TRIGHT, tree->TLEFT);
+    }
+    // need to recurse
+    cog_object* newnode = _mktable(tree->TKEY, tree->TVAL, tree->TRIGHT, tree->TLEFT);
+    if (is_left) newnode->TLEFT = _iou_helper(newnode->TLEFT, key, val, rest_hash);
+    else newnode->TRIGHT = _iou_helper(newnode->TRIGHT, key, val, rest_hash);
+    return newnode;
+}
 
+static cog_object* _rem_helper(cog_object* tree, cog_object* key, int64_t hash) {
+    if (!tree) return NULL;
+    bool is_left = hash & 1;
+    int64_t rest_hash = hash >> 1;
+    cog_object* newtab;
+
+    if (cog_equal(key, tree->TKEY)) {
+        // this node is what needs to be deleted
+        if (!tree->TLEFT && !tree->TRIGHT) newtab = NULL; // leaf node gets deleted
+        // else just pick which side to delete. I chose right first else left
+        else if (tree->TRIGHT) newtab = _mktable(tree->TRIGHT->TKEY, tree->TRIGHT->TVAL, tree->TLEFT, tree->TRIGHT->TRIGHT);
+        else newtab = _mktable(tree->TLEFT->TKEY, tree->TLEFT->TVAL, tree->TLEFT->TLEFT, tree->TRIGHT);
+    } else {
+        // it's another node that needs to be deleted
+        if (is_left) newtab = _mktable(tree->TKEY, tree->TVAL, _rem_helper(tree->TLEFT, key, rest_hash), tree->TRIGHT);
+        else newtab = _mktable(tree->TKEY, tree->TVAL, tree->TLEFT, _rem_helper(tree->TRIGHT, key, rest_hash));
+    }
+    return newtab;
+}
+
+cog_object* cog_table_get(cog_object* tab, cog_object* key, bool* found) {
+    assert(tab && tab->type == &cog_ot_table);
+    cog_object* tree = tab->next; // get the internal tree
+    int64_t hash = cog_hash(key)->as_int;
+    while (tree) {
+        if (cog_equal(tree->TKEY, key)) {
+            *found = true;
+            return tree->TVAL;
+        }
+        bool is_left = hash & 1;
+        hash = hash >> 1;
+        if (is_left) tree = tree->TLEFT;
+        else tree = tree->TRIGHT;
+    }
+    *found = false;
+    return NULL;
 }
 
 cog_object* cog_table_insert_or_update(cog_object* tab, cog_object* key, cog_object* val) {
-
+    assert(tab && tab->type == &cog_ot_table);
+    return _wraptab(_iou_helper(tab->next, key, val, cog_hash(key)->as_int));
 }
+
+cog_object* cog_table_remove(cog_object* tab, cog_object* key) {
+    assert(tab && tab->type == &cog_ot_table);
+    bool found;
+    cog_table_get(tab, key, &found);
+    if (!found) return tab; // same table if no update needed
+    return _wraptab(_rem_helper(tab->next, key, cog_hash(key)->as_int));
+}
+
+void _table_show_rec_helper(cog_object* tree, cog_object* alist, cog_object* stream, int64_t* counter, bool readably) {
+    if (!tree) return;
+    _table_show_rec_helper(tree->TLEFT, alist, stream, counter, readably);
+    if (tree->TLEFT) cog_fputs_imm(stream, ", ");
+    cog_print_refs_recursive(tree->TKEY, alist, stream, counter, readably);
+    cog_fputs_imm(stream, ": ");
+    cog_print_refs_recursive(tree->TVAL, alist, stream, counter, readably);
+    if (tree->TRIGHT) cog_fputs_imm(stream, ", ");
+    _table_show_rec_helper(tree->TRIGHT, alist, stream, counter, readably);
+}
+
+cog_object* m_table_show_recursive() {
+    cog_object* table = cog_pop();
+    bool readably = cog_expect_type_fatal(cog_pop(), &cog_ot_bool)->as_int;
+    cog_object* stream = cog_pop();
+    cog_object* alist = cog_pop();
+    int64_t* counter = (int64_t*)cog_pop()->as_ptr;
+    cog_fputs_imm(stream, "{ ");
+    _table_show_rec_helper(table->next, alist, stream, counter, readably);
+    cog_fputs_imm(stream, " }");
+    return NULL;
+}
+cog_object_method ome_table_show_recursive = {&cog_ot_table, "Show_Recursive", m_table_show_recursive};
+
+cog_object* m_table_hash() {
+    cog_object* self = cog_pop();
+    cog_object* tree_hash = cog_hash(self->next);
+    if (!tree_hash) return cog_not_implemented(); // will be the case if there are mutable values
+    cog_push(cog_box_int(tree_hash->as_int ^ 0x123456789ABCE1BLL));
+    return NULL;
+}
+cog_object_method ome_table_hash = {&cog_ot_table, "Hash", m_table_hash};
 
 // MARK: ENVIRONMENT
 
@@ -1470,8 +1572,6 @@ cog_object_method ome_block_show = {&ot_block, "Show", m_block_show};
 
 // MARK: DUMPER
 
-static bool in_dumper = false;
-
 static bool make_refs_list(cog_object* obj, cog_object* alist_header) {
     cog_object* entry = cog_assoc(alist_header->data, obj, cog_same_pointer);
     if (entry) {
@@ -1543,18 +1643,10 @@ void cog_print_refs_recursive(cog_object* obj, cog_object* alist, cog_object* st
 }
 
 void cog_dump(cog_object* obj, cog_object* stream, bool readably) {
-    if (in_dumper) {
-        fprintf(stderr, "Can't use cog_dump() or anything that calls it (like cog_sprintf() "
-                        "with %%O) recursively. Please construct the string manually.\n");
-        print_backtrace();
-        abort();
-    }
-    in_dumper = true;
     cog_object* alist_header = cog_make_obj(&cog_ot_list);
     int64_t counter = 1;
     cog_walk(obj, make_refs_list, alist_header);
     cog_print_refs_recursive(obj, alist_header->data, stream, &counter, readably);
-    in_dumper = false;
 }
 
 // MARK: PARSER
@@ -2937,6 +3029,76 @@ cog_modfunc fne_sinh = {"Sinh", COG_FUNC, fn_sinh, "Return the hyperbolic sine o
 cog_modfunc fne_cosh = {"Cosh", COG_FUNC, fn_cosh, "Return the hyperbolic cosine of the angle, which is expressed in radians."};
 cog_modfunc fne_tanh = {"Tanh", COG_FUNC, fn_tanh, "Return the hyperbolic tangent of the angle, which is expressed in radians."};
 
+cog_object* fn_table() {
+    cog_run_next(cog_make_identifier_c("[[Table::ListToTable]]"), NULL, NULL);
+    cog_run_next(cog_make_identifier_c("List"), NULL, NULL);
+    return NULL;
+}
+cog_modfunc fne_table = {"Table", COG_FUNC, fn_table, "Makes a table from the key-value pairs from a block."};
+
+#define ENSURE_HASHABLE(obj) \
+    do { \
+        if (!cog_hash(obj)) COG_RETURN_ERROR(cog_sprintf("Can't hash key %O", (obj))); \
+    } while (0)
+
+cog_object* fn_list_to_tab() {
+    COG_ENSURE_N_ITEMS(1);
+    cog_object* list = cog_pop();
+    COG_ENSURE_LIST(list);
+    cog_object* tab = cog_emptytab();
+    while (list) {
+        cog_object* key = list->data;
+        ENSURE_HASHABLE(key);
+        if (!list->next) COG_RETURN_ERROR(cog_string("Odd-length list in Table initializer"));
+        cog_object* val = list->next->data;
+        list = list->next->next;
+        tab = cog_table_insert_or_update(tab, key, val);
+    }
+    cog_push(tab);
+    return NULL;
+}
+cog_modfunc fne_list_to_tab = {"[[Table::ListToTable]]", COG_FUNC, fn_list_to_tab, NULL};
+
+cog_object* fn_insert() {
+    COG_ENSURE_N_ITEMS(3);
+    cog_object* key = cog_pop();
+    cog_object* value = cog_pop();
+    cog_object* table = cog_pop();
+    COG_ENSURE_TYPE(table, &cog_ot_table);
+    ENSURE_HASHABLE(key);
+    cog_push(cog_table_insert_or_update(table, key, value));
+    return NULL;
+}
+cog_modfunc fne_insert = {"Insert", COG_FUNC, fn_insert, "Insert a key-value pair into a table, and return the updated table."};
+
+cog_object* fn_remove() {
+    COG_ENSURE_N_ITEMS(2);
+    cog_object* key = cog_pop();
+    cog_object* table = cog_pop();
+    COG_ENSURE_TYPE(table, &cog_ot_table);
+    ENSURE_HASHABLE(key);
+    bool found;
+    cog_table_get(table, key, &found);
+    if (!found) COG_RETURN_ERROR(cog_sprintf("Can't remove key %O that is not in the table", key));
+    cog_push(cog_table_remove(table, key));
+    return NULL;
+}
+cog_modfunc fne_remove = {"Remove", COG_FUNC, fn_remove, "Remove a key-value pair from a table, and return the updated table."};
+
+cog_object* fn_dot() {
+    COG_ENSURE_N_ITEMS(2);
+    cog_object* key = cog_pop();
+    cog_object* table = cog_pop();
+    COG_ENSURE_TYPE(table, &cog_ot_table);
+    ENSURE_HASHABLE(key);
+    bool found;
+    cog_object* value = cog_table_get(table, key, &found);
+    if (!found) COG_RETURN_ERROR(cog_sprintf("Can't get key %O from table", key));
+    cog_push(value);
+    return NULL;
+}
+cog_modfunc fne_dot = {".", COG_FUNC, fn_dot, "Return the value for a key in a table."};
+
 cog_obj_type cog_ot_continuation = {"Continuation", cog_walk_both, NULL};
 
 cog_object* cog_make_continuation() {
@@ -3079,6 +3241,12 @@ static cog_modfunc* builtin_modfunc_table[] = {
     &fne_rest,
     &fne_push,
     &fne_is_empty,
+    // table functions
+    &fne_table,
+    &fne_list_to_tab,
+    &fne_insert,
+    &fne_remove,
+    &fne_dot,
     // string functions
     &fne_append,
     &fne_substring,
@@ -3138,8 +3306,10 @@ static cog_object_method* builtin_objfunc_table[] = {
     &ome_string_hash,
     &ome_continuation_exec,
     &ome_list_show_recursive,
-    &ome_box_show_recursive,
     &ome_list_hash,
+    &ome_box_show_recursive,
+    &ome_table_show_recursive,
+    &ome_table_hash,
     &ome_int_equal_other_type,
     &ome_float_equal_other_type,
     NULL
@@ -3149,6 +3319,7 @@ static cog_obj_type* builtin_types[] = {
     &cog_ot_pointer,
     &cog_ot_owned_pointer,
     &cog_ot_list,
+    &cog_ot_table,
     &cog_ot_int,
     &cog_ot_bool,
     &cog_ot_float,

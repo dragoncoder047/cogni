@@ -33,7 +33,7 @@ bool do_top(cog_object* cookie) {
     if (cog_same_identifiers(end_status, cog_error())) {
         cog_object* msg = cog_pop();
         if (msg) cog_printf("ERROR: %#O\n", msg);
-        if (isatty(fileno(stdin))) putchar('\a');
+        if (isatty(fileno(stdout))) putchar('\a');
         return false;
     }
     return true;
