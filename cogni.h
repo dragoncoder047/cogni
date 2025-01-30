@@ -77,7 +77,7 @@ struct _cog_modfunc {
     Show_Recursive: (counter alist stream readably self --)
     Serialize: (self -- buffer)
     Unserialize: (buffer trash -- obj)
-    Compare: (other self -- result)
+    Equal_WrongType: (other self -- result)
 
     -- for streams --
     Stream::GetChar: (stream -- buffer)

@@ -640,6 +640,17 @@ static cog_object* m_int_hash() {
 }
 cog_object_method ome_int_hash = {&cog_ot_int, "Hash", m_int_hash};
 
+static cog_object* m_int_equal_wrong_type() {
+    cog_object* self = cog_pop();
+    cog_object* other = cog_pop();
+    if (other->type == &cog_ot_float) {
+        cog_push(cog_box_bool(self->as_int == other->as_float));
+        return NULL;
+    }
+    return cog_not_implemented();
+}
+cog_object_method ome_int_equal_wrong_type = {&cog_ot_int, "Equal_WrongType", m_int_equal_wrong_type};
+
 cog_obj_type cog_ot_bool = {"Boolean", NULL};
 cog_object* cog_box_bool(bool i) {
     cog_object* obj = cog_make_obj(&cog_ot_bool);
@@ -700,6 +711,17 @@ static cog_object* m_float_hash() {
     return NULL;
 }
 cog_object_method ome_float_hash = {&cog_ot_float, "Hash", m_float_hash};
+
+static cog_object* m_float_equal_wrong_type() {
+    cog_object* self = cog_pop();
+    cog_object* other = cog_pop();
+    if (other->type == &cog_ot_int) {
+        cog_push(cog_box_bool(self->as_float == other->as_int));
+        return NULL;
+    }
+    return cog_not_implemented();
+}
+cog_object_method ome_float_equal_wrong_type = {&cog_ot_float, "Equal_WrongType", m_float_equal_wrong_type};
 
 // MARK: IDENTIFIERS
 
@@ -2300,11 +2322,15 @@ cog_object* fn_eq() {
     cog_object* a = cog_pop();
     cog_object* b = cog_pop();
     if (a && b && a->type != b->type) {
-        // special case for numbers
-        // TODO: make unequal type comparison a well-known method?
-        if (a->type == &cog_ot_float && b->type == &cog_ot_int) cog_push(cog_box_bool(a->as_float == b->as_int));
-        else if (a->type == &cog_ot_int && b->type == &cog_ot_float) cog_push(cog_box_bool(a->as_int == b->as_float));
-        else cog_push(cog_box_bool(false));
+        cog_push(b);
+        if (cog_same_identifiers(cog_run_well_known(a, "Equal_WrongType"), cog_not_implemented())) {
+            cog_pop();
+            cog_push(a);
+            if (cog_same_identifiers(cog_run_well_known(b, "Equal_WrongType"), cog_not_implemented())) {
+                cog_pop();
+                cog_push(cog_box_bool(false));
+            }
+        }
     }
     else {
         cog_object* ha = cog_hash(a);
@@ -3076,6 +3102,7 @@ static cog_modfunc* builtin_modfunc_table[] = {
 };
 
 static cog_object_method* builtin_objfunc_table[] = {
+    // ...existing code...
     &ome_int_show,
     &ome_int_exec,
     &ome_bool_show,
@@ -3109,6 +3136,8 @@ static cog_object_method* builtin_objfunc_table[] = {
     &ome_list_show_recursive,
     &ome_box_show_recursive,
     &ome_list_hash,
+    &ome_int_equal_wrong_type,
+    &ome_float_equal_wrong_type,
     NULL
 };
 
