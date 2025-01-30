@@ -506,6 +506,11 @@ cog_object* cog_run_well_known(cog_object*, const char*);
  */
 cog_object* cog_run_well_known_strict(cog_object*, const char*);
 
+/**
+ * Returns true if an implementation for the specified well-known method appears to exist
+ * for that object's type. It doesn't call anything so there's no way of knowing if the
+ * method would return `cog_not_implemented()`.
+ */
 bool cog_has_well_known(cog_object*, const char*);
 
 /**
@@ -646,6 +651,7 @@ extern cog_obj_type cog_ot_continuation;
 
 /**
  * Ensures that an object is a list type, returning early with an error if not.
+ * This is special-cased because NULL is considered to be a list and not anything else.
  */
 #define COG_ENSURE_LIST(obj) \
     do { \
@@ -653,7 +659,7 @@ extern cog_obj_type cog_ot_continuation;
     } while (0)
 
 /**
- * Ensures that an object is one of the numeric types, returning early with an error if not, and storing the float result in the variable
+ * Ensures that an object is one of the numeric types, returning early with an error if not, and storing the float result in the variable.
  */
 #define COG_GET_NUMBER(obj, var) \
     do { \
