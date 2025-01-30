@@ -1,4 +1,3 @@
-Let K be Box 0;
-Begin (Set K);
-Print "Looping!";
-Do Unbox K;
+Let X be Box 0;
+Let Y be Box 0;
+Print == X Y;

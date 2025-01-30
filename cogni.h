@@ -585,8 +585,8 @@ void cog_pop_scope();
 
 /**
  * Hashes an object.
- * @param obj The object to hash.
- * @return The hash value.
+ * @return The hash value as a Cognate integer.
+ * NULL if the object has no Hash method implemented.
  */
 cog_object* cog_hash(cog_object* obj);
 

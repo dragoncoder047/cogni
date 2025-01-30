@@ -26,6 +26,21 @@
 #define cog_free free
 #endif
 
+#ifndef FNV_PRIME
+#define FNV_PRIME 1099511628211LL
+#endif
+
+#ifndef IDENT_HASH_SEED
+#define IDENT_HASH_SEED 14695981039346656035ULL
+#endif
+
+#ifndef SYM_HASH_SEED
+#define SYM_HASH_SEED 14695981039346656037ULL
+#endif
+#ifndef STRING_HASH_SEED
+#define STRING_HASH_SEED 14695981039346656039ULL
+#endif
+
 #define min(a, b) ((a) < (b) ? (a) : (b))
 
 #define trace() printf("TRACE: %s: reached %s:%i\n", __func__, __FILE__, __LINE__)
@@ -334,12 +349,6 @@ void cog_reverse_list_inplace(cog_object** list) {
     *list = prev;
 }
 
-cog_object* cog_hash(cog_object* obj) {
-    cog_object* ret = cog_run_well_known(obj, "Hash");
-    if (cog_same_identifiers(cog_not_implemented(), ret)) return NULL;
-    return cog_pop();
-}
-
 cog_object* m_list_show_recursive() {
     cog_object* obj = cog_pop();
     bool readably = cog_expect_type_fatal(cog_pop(), &cog_ot_bool)->as_int;
@@ -372,10 +381,64 @@ cog_object* m_list_show_recursive() {
 }
 cog_object_method ome_list_show_recursive = {&cog_ot_list, "Show_Recursive", m_list_show_recursive};
 
+cog_object* m_list_hash() {
+    cog_object* self = cog_pop();
+    cog_object* d;
+    d = cog_hash(self->data);
+    if (!d) return cog_not_implemented();
+    int64_t data_hash = d->as_int;
+    d = cog_hash(self->next);
+    if (!d) return cog_not_implemented();
+    int64_t next_hash = d->as_int;
+    cog_push(cog_box_int(data_hash + (FNV_PRIME * (1 + next_hash))));
+    return NULL;
+}
+cog_object_method ome_list_hash = {&cog_ot_list, "Hash", m_list_hash};
+
+// MARK: TABLES
+
+cog_object* cog_hash(cog_object* obj) {
+    if (!obj) return cog_box_int(0);
+    if (cog_same_identifiers(cog_run_well_known(obj, "Hash"), cog_not_implemented()))
+        return NULL;
+    return cog_expect_type_fatal(cog_pop(), &cog_ot_int);
+}
+
+static cog_object* _mktable(cog_object* key, cog_object* val, cog_object* left, cog_object* right) {
+    cog_object* a = cog_make_obj(&cog_ot_list);
+    cog_object* b = cog_make_obj(&cog_ot_list);
+    cog_object* c = cog_make_obj(&cog_ot_list);
+    a->data = b;
+    a->next = c;
+    b->data = key;
+    b->next = val;
+    c->data = left;
+    c->next = right;
+    return a;
+}
+
+cog_object* cog_table_clone(cog_object* tab) {
+    if (!tab) return NULL;
+    return _mktable(
+        tab->data->data,
+        tab->data->next,
+        cog_table_clone(tab->next->data),
+        cog_table_clone(tab->next->next));
+}
+
+static cog_object* _iou_helper(cog_object* tab, int64_t rem_hash) {
+
+}
+
+cog_object* cog_table_insert_or_update(cog_object* tab, cog_object* key, cog_object* val) {
+
+}
+
 // MARK: ENVIRONMENT
 
 void cog_defun(cog_object* identifier, cog_object* value) {
     cog_object* top_scope = COG_GLOBALS.scopes->data;
+    // TODO: do env with tables
     cog_object* pair = cog_assoc(top_scope, identifier, cog_same_identifiers);
     if (pair) {
         pair->next = value;
@@ -806,7 +869,7 @@ cog_object_method ome_identifier_exec = {&cog_ot_identifier, "Exec", m_run_ident
 static int64_t _string_hash(cog_object*, int64_t);
 
 static cog_object* m_identifier_hash() {
-    cog_push(cog_box_int(_string_hash(cog_explode_identifier(cog_pop(), true), 14695981039346656039ULL)));
+    cog_push(cog_box_int(_string_hash(cog_explode_identifier(cog_pop(), true), IDENT_HASH_SEED)));
     return NULL;
 }
 cog_object_method ome_identifier_hash = {&cog_ot_identifier, "Hash", m_identifier_hash};
@@ -845,7 +908,7 @@ cog_object* m_symbol_show() {
 cog_object_method ome_symbol_show = {&cog_ot_symbol, "Show", m_symbol_show};
 
 static cog_object* m_symbol_hash() {
-    cog_push(cog_box_int(_string_hash(cog_explode_identifier(cog_pop()->next, false), 14695981039346656035ULL)));
+    cog_push(cog_box_int(_string_hash(cog_explode_identifier(cog_pop()->next, false), SYM_HASH_SEED)));
     return NULL;
 }
 cog_object_method ome_symbol_hash = {&cog_ot_symbol, "Hash", m_symbol_hash};
@@ -1047,7 +1110,7 @@ static int64_t _string_hash(cog_object* str, int64_t hash) {
     while (str) {
         for (int i = 0; i < str->stored_chars; i++) {
             hash ^= (int64_t)str->as_chars[i];
-            hash *= 1099511628211ULL;
+            hash *= FNV_PRIME;
         }
         str = str->next;
     }
@@ -1055,7 +1118,7 @@ static int64_t _string_hash(cog_object* str, int64_t hash) {
 }
 
 static cog_object* m_string_hash() {
-    cog_push(cog_box_int(_string_hash(cog_pop(), 14695981039346656037ULL)));
+    cog_push(cog_box_int(_string_hash(cog_pop(), STRING_HASH_SEED)));
     return NULL;
 }
 cog_object_method ome_string_hash = {&cog_ot_string, "Hash", m_string_hash};
@@ -1279,8 +1342,6 @@ cog_object* m_iostring_show() {
 }
 cog_object_method ome_iostring_show = {&ot_iostring, "Show", m_iostring_show};
 
-cog_object_method ome_iostring_hash = {&ot_iostring, "Hash", cog_not_implemented};
-
 // MARK: BUILTIN FUNCTION OBJECTS
 
 cog_obj_type ot_bfunction = {"BuiltinFunction", NULL};
@@ -1301,8 +1362,6 @@ cog_object* m_bfunction_exec() {
     return f->fun();
 }
 cog_object_method ome_bfunction_exec = {&ot_bfunction, "Exec", m_bfunction_exec};
-
-cog_object_method ome_bfunction_hash = {&ot_bfunction, "Hash", cog_not_implemented};
 
 // MARK: BLOCKS AND CLOSURES
 
@@ -1343,7 +1402,6 @@ cog_object* m_closure_exec() {
     return NULL;
 }
 cog_object_method ome_closure_exec = {&ot_closure, "Exec", m_closure_exec};
-cog_object_method ome_closure_hash = {&ot_closure, "Hash", cog_not_implemented};
 
 cog_object* fn_closure_restore_scope() {
     cog_object* old_scope = cog_pop();
@@ -1387,9 +1445,6 @@ cog_object* m_block_show() {
     return NULL;
 }
 cog_object_method ome_block_show = {&ot_block, "Show", m_block_show};
-cog_object_method ome_block_hash = {&ot_block, "Hash", cog_not_implemented};
-
-
 
 // MARK: DUMPER
 
@@ -2047,7 +2102,6 @@ cog_object* m_def_or_let_exec() {
     return NULL;
 }
 cog_object_method ome_def_or_let_exec = {&ot_def_or_let_special, "Exec", m_def_or_let_exec};
-cog_object_method ome_def_or_let_hash = {&ot_def_or_let_special, "Hash", cog_not_implemented};
 
 cog_object* m_def_or_let_show() {
     cog_object* self = cog_pop();
@@ -2066,9 +2120,6 @@ cog_object* m_var_run_self() {
     return NULL;
 }
 cog_object_method ome_var_exec = {&ot_var, "Exec", m_var_run_self};
-cog_object_method ome_var_hash = {&ot_var, "Hash", cog_not_implemented};
-
-
 
 cog_object* fn_parser_transform_def_or_let() {
     cog_object* cookie = cog_pop();
@@ -2201,16 +2252,15 @@ cog_modfunc fne_empty = {
     cog_object* a = cog_pop(); \
     cog_object* b = cog_pop(); \
     if (a && b) { \
-        if ((a->type == &cog_ot_int || a->type == &cog_ot_float) && (b->type == &cog_ot_int || b->type == &cog_ot_float)) { \
-            if (a->type == &cog_ot_int && b->type == &cog_ot_int) { \
-                cog_push(cog_box_##both_ints_type((both_ints_cast b->as_int) op (both_ints_cast a->as_int))); \
-            } else { \
-                double a_val = (a->type == &cog_ot_int) ? (double)a->as_int : a->as_float; \
-                double b_val = (b->type == &cog_ot_int) ? (double)b->as_int : b->as_float; \
-                cog_push(cog_box_##either_float_type(b_val op a_val)); \
-            } \
-            return NULL; \
+        if (a->type == &cog_ot_int && b->type == &cog_ot_int) { \
+            cog_push(cog_box_##both_ints_type((both_ints_cast b->as_int) op (both_ints_cast a->as_int))); \
+        } else { \
+            double a_val, b_val; \
+            COG_GET_NUMBER(a, a_val); \
+            COG_GET_NUMBER(b, b_val); \
+            cog_push(cog_box_##either_float_type(b_val op a_val)); \
         } \
+        return NULL; \
     } \
     cog_push(cog_sprintf("Can't apply operator %s to %s and %s", #op, \
         GET_TYPENAME_STRING(a), GET_TYPENAME_STRING(b))); \
@@ -2249,42 +2299,18 @@ cog_object* fn_eq() {
     COG_ENSURE_N_ITEMS(2);
     cog_object* a = cog_pop();
     cog_object* b = cog_pop();
-    bool result = false;
-    if (a && b) {
-        if (a->type == b->type) {
-            if (a->type == &cog_ot_int) {
-                result = (a->as_int == b->as_int);
-            } else if (a->type == &cog_ot_float) {
-                result = (a->as_float == b->as_float);
-            } else if (a->type == &cog_ot_bool) {
-                result = (a->as_int == b->as_int);
-            } else if (a->type == &cog_ot_identifier) {
-                result = cog_same_identifiers(a, b);
-            } else if (a->type == &cog_ot_symbol) {
-                result = cog_same_identifiers(a->next, b->next);
-            } else if (a->type == &cog_ot_string) {
-                result = (cog_strcmp(a, b) == 0);
-            } else if (a->type == &cog_ot_list) {
-                cog_push(b);
-                cog_push(a);
-                cog_run_next(cog_make_identifier_c("SameLists"), NULL, NULL);
-                return NULL;
-            } else {
-                result = (a == b);
-            }
-        } else if (a->type == &cog_ot_int && b->type == &cog_ot_float) {
-            result = (a->as_int == b->as_float);
-        } else if (a->type == &cog_ot_float && b->type == &cog_ot_int) {
-            result = (a->as_float == b->as_int);
-        } else {
-            result = false;
-        }
-    } else if (a == b) {
-        result = true;
-    } else {
-        result = false;
+    if (a && b && a->type != b->type) {
+        // special case for numbers
+        // TODO: make unequal type comparison a well-known method?
+        if (a->type == &cog_ot_float && b->type == &cog_ot_int) cog_push(cog_box_bool(a->as_float == b->as_int));
+        else if (a->type == &cog_ot_int && b->type == &cog_ot_float) cog_push(cog_box_bool(a->as_int == b->as_float));
+        else cog_push(cog_box_bool(false));
     }
-    cog_push(cog_box_bool(result));
+    else {
+        cog_object* ha = cog_hash(a);
+        cog_object* hb = cog_hash(b);
+        cog_push(cog_box_bool(ha && hb ? (ha->as_int == hb->as_int) : (a == b)));
+    }
     return NULL;
 }
 cog_modfunc fne_eq = {"==", COG_FUNC, fn_eq, "Check if two objects are equal."};
@@ -3079,15 +3105,10 @@ static cog_object_method* builtin_objfunc_table[] = {
     &ome_identifier_hash,
     &ome_symbol_hash,
     &ome_string_hash,
-    &ome_iostring_hash,
-    &ome_bfunction_hash,
-    &ome_closure_hash,
-    &ome_block_hash,
-    &ome_def_or_let_hash,
-    &ome_var_hash,
     &ome_continuation_exec,
     &ome_list_show_recursive,
     &ome_box_show_recursive,
+    &ome_list_hash,
     NULL
 };
 
