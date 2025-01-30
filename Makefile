@@ -1,4 +1,4 @@
-.PHONY: test run cleanexec cleanlogs stresstest cleanexec prelude.inc prelude2.inc clean
+.PHONY: test run cleanexec cleanlogs stresstest cleanexec prelude.inc prelude2.inc clean cloc
 .NOPARALLEL:
 test: stresstest cleanexec
 
@@ -35,4 +35,7 @@ cleanlogs:
 	rm -f cognac/tests/*.log
 
 clean: cleanexec cleanlogs
-# cSpell: ignore lreadline Wuninitialized NOPARALLEL
+
+cloc:
+	cloc . --vcs=git
+# cSpell: ignore lreadline Wuninitialized NOPARALLEL cloc
