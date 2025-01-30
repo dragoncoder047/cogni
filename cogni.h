@@ -339,7 +339,7 @@ void cog_fputs_imm(cog_object*, const char* s);
 
 /**
  * Wraps a `cog_modfunc*` into an object that can be run.
- * The modfunc mush have a `when` of `COG_FUNC`.
+ * The modfunc mush have a `when` of `COG_FUNC` or `COG_COOKIEFUNC`.
  */
 cog_object* cog_make_bfunction(cog_modfunc*);
 
@@ -422,6 +422,11 @@ cog_object* cog_pop_from(cog_object** stack);
  * Dumps an object to a stream.
  */
 void cog_dump(cog_object*, cog_object*, bool);
+
+/**
+ * Returns true if a == b.
+ */
+bool cog_equal(cog_object*, cog_object*);
 
 /**
  * printf() to Cognate's internal stdout, but with %O you can dump an object.

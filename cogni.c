@@ -2317,10 +2317,7 @@ cog_modfunc fne_lesseq = {"<=", COG_FUNC, fn_lesseq, "Check if a is less than or
 cog_modfunc fne_greatereq = {">=", COG_FUNC, fn_greatereq, "Check if a is greater than or equal to b."};
 cog_modfunc fne_pow = {"^", COG_FUNC, fn_pow, "Get the power of a to b."};
 
-cog_object* fn_eq() {
-    COG_ENSURE_N_ITEMS(2);
-    cog_object* a = cog_pop();
-    cog_object* b = cog_pop();
+bool cog_equal(cog_object* a, cog_object* b) {
     if (a && b && a->type != b->type) {
         cog_push(b);
         if (cog_same_identifiers(cog_run_well_known(a, "Equal_OtherType"), cog_not_implemented())) {
@@ -2328,15 +2325,22 @@ cog_object* fn_eq() {
             cog_push(a);
             if (cog_same_identifiers(cog_run_well_known(b, "Equal_OtherType"), cog_not_implemented())) {
                 cog_pop();
-                cog_push(cog_box_bool(false));
-            }
-        }
+                return false;
+            } else return cog_expect_type_fatal(cog_pop(), &cog_ot_bool)->as_int;
+        } else return cog_expect_type_fatal(cog_pop(), &cog_ot_bool)->as_int;
     }
     else {
         cog_object* ha = cog_hash(a);
         cog_object* hb = cog_hash(b);
-        cog_push(cog_box_bool(ha && hb ? (ha->as_int == hb->as_int) : (a == b)));
+        return ha && hb ? (ha->as_int == hb->as_int) : (a == b);
     }
+}
+
+cog_object* fn_eq() {
+    COG_ENSURE_N_ITEMS(2);
+    cog_object* a = cog_pop();
+    cog_object* b = cog_pop();
+    cog_push(cog_box_bool(cog_equal(a, b)));
     return NULL;
 }
 cog_modfunc fne_eq = {"==", COG_FUNC, fn_eq, "Check if two objects are equal."};
