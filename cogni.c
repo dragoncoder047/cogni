@@ -410,7 +410,7 @@ cog_object* cog_hash(cog_object* obj) {
     return cog_expect_type_fatal(cog_pop(), &cog_ot_int);
 }
 
-static cog_object* _mktable(cog_object* key, cog_object* val, cog_object* left, cog_object* right) {
+static cog_object* _treenode(cog_object* key, cog_object* val, cog_object* left, cog_object* right) {
     cog_object* a = cog_make_obj(&cog_ot_list);
     cog_object* b = cog_make_obj(&cog_ot_list);
     cog_object* c = cog_make_obj(&cog_ot_list);
@@ -437,16 +437,20 @@ static cog_object* _wraptab(cog_object* tree) {
 static cog_object* _iou_helper(cog_object* tree, cog_object* key, cog_object* val, int64_t hash) {
     if (!tree) {
         // we got to the end without finding a existing node, so add a new one
-        return _mktable(key, val, NULL, NULL);
+        cog_printf("DEBUG: New node with %O: %O\n", key, val);
+        return _treenode(key, val, NULL, NULL);
     }
     bool is_left = hash & 1;
     int64_t rest_hash = hash >> 1;
     if (cog_equal(tree->TKEY, key)) {
         // update this node
-        return _mktable(tree->TKEY, val, tree->TRIGHT, tree->TLEFT);
+        cog_printf("DEBUG: Update node with %O: %O\n", key, val);
+        return _treenode(tree->TKEY, val, tree->TRIGHT, tree->TLEFT);
     }
     // need to recurse
-    cog_object* newnode = _mktable(tree->TKEY, tree->TVAL, tree->TRIGHT, tree->TLEFT);
+    printf("->%s", is_left ? "left" : "right");
+    fflush(stdout);
+    cog_object* newnode = _treenode(tree->TKEY, tree->TVAL, tree->TRIGHT, tree->TLEFT);
     if (is_left) newnode->TLEFT = _iou_helper(newnode->TLEFT, key, val, rest_hash);
     else newnode->TRIGHT = _iou_helper(newnode->TRIGHT, key, val, rest_hash);
     return newnode;
@@ -456,27 +460,29 @@ static cog_object* _rem_helper(cog_object* tree, cog_object* key, int64_t hash) 
     if (!tree) return NULL;
     bool is_left = hash & 1;
     int64_t rest_hash = hash >> 1;
-    cog_object* newtab;
+    cog_object* newtree;
 
     if (cog_equal(key, tree->TKEY)) {
         // this node is what needs to be deleted
-        if (!tree->TLEFT && !tree->TRIGHT) newtab = NULL; // leaf node gets deleted
+        if (!tree->TLEFT && !tree->TRIGHT) newtree = NULL; // leaf node gets deleted
         // else just pick which side to delete. I chose right first else left
-        else if (tree->TRIGHT) newtab = _mktable(tree->TRIGHT->TKEY, tree->TRIGHT->TVAL, tree->TLEFT, tree->TRIGHT->TRIGHT);
-        else newtab = _mktable(tree->TLEFT->TKEY, tree->TLEFT->TVAL, tree->TLEFT->TLEFT, tree->TRIGHT);
+        else if (tree->TRIGHT) newtree = _treenode(tree->TRIGHT->TKEY, tree->TRIGHT->TVAL, tree->TLEFT, tree->TRIGHT->TRIGHT);
+        else newtree = _treenode(tree->TLEFT->TKEY, tree->TLEFT->TVAL, tree->TLEFT->TLEFT, tree->TRIGHT);
     } else {
         // it's another node that needs to be deleted
-        if (is_left) newtab = _mktable(tree->TKEY, tree->TVAL, _rem_helper(tree->TLEFT, key, rest_hash), tree->TRIGHT);
-        else newtab = _mktable(tree->TKEY, tree->TVAL, tree->TLEFT, _rem_helper(tree->TRIGHT, key, rest_hash));
+        if (is_left) newtree = _treenode(tree->TKEY, tree->TVAL, _rem_helper(tree->TLEFT, key, rest_hash), tree->TRIGHT);
+        else newtree = _treenode(tree->TKEY, tree->TVAL, tree->TLEFT, _rem_helper(tree->TRIGHT, key, rest_hash));
     }
-    return newtab;
+    return newtree;
 }
 
 cog_object* cog_table_get(cog_object* tab, cog_object* key, bool* found) {
     assert(tab && tab->type == &cog_ot_table);
     cog_object* tree = tab->next; // get the internal tree
     int64_t hash = cog_hash(key)->as_int;
+    cog_printf("DEBUG: getting with hash %llX, tree is: %O\n", hash, tree);
     while (tree) {
+        cog_printf("DEBUG: looking at key %O\n", tree->TKEY);
         if (cog_equal(tree->TKEY, key)) {
             *found = true;
             return tree->TVAL;
@@ -485,6 +491,8 @@ cog_object* cog_table_get(cog_object* tab, cog_object* key, bool* found) {
         hash = hash >> 1;
         if (is_left) tree = tree->TLEFT;
         else tree = tree->TRIGHT;
+        printf("%s->", is_left ? "left" : "right");
+        fflush(stdout);
     }
     *found = false;
     return NULL;
@@ -492,6 +500,7 @@ cog_object* cog_table_get(cog_object* tab, cog_object* key, bool* found) {
 
 cog_object* cog_table_insert_or_update(cog_object* tab, cog_object* key, cog_object* val) {
     assert(tab && tab->type == &cog_ot_table);
+    cog_printf("DEBUG: adding key %O to table\n", key);
     return _wraptab(_iou_helper(tab->next, key, val, cog_hash(key)->as_int));
 }
 
@@ -797,7 +806,7 @@ cog_object* float_printself() {
     cog_object* num = cog_pop();
     cog_pop(); // ignore cookie
     char buffer[32];
-    snprintf(buffer, sizeof(buffer), "%lg", num->as_float);
+    snprintf(buffer, sizeof(buffer), "%lg%s", num->as_float, floor(num->as_float) == num->as_float ? ".0" : "");
     cog_push(cog_string(buffer));
     return NULL;
 }
@@ -808,7 +817,7 @@ static cog_object* m_float_hash() {
     cog_object* num = cog_pop();
     double val = num->as_float;
     // floats hash to their int value if it's an int, otherwise the reinterpret_cast of their bits
-    int64_t hash = val == ((double)((int64_t)val)) ? (int64_t)val : *(int64_t*)&val;
+    int64_t hash = val == floor(val) ? (int64_t)val : *(int64_t*)&val;
     cog_push(cog_box_int(hash));
     return NULL;
 }
