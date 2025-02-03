@@ -434,65 +434,73 @@ static cog_object* _wraptab(cog_object* tree) {
     return tab;
 }
 
+// TODO: use binary search tree instead of binary path tree which is super weird
+
 static cog_object* _iou_helper(cog_object* tree, cog_object* key, cog_object* val, int64_t hash) {
     if (!tree) {
         // we got to the end without finding a existing node, so add a new one
-        cog_printf("DEBUG: New node with %O: %O\n", key, val);
+        // cog_printf("DEBUG: New node with %O: %O\n", key, val);
         return _treenode(key, val, NULL, NULL);
     }
-    bool is_left = hash & 1;
-    int64_t rest_hash = hash >> 1;
     if (cog_equal(tree->TKEY, key)) {
         // update this node
-        cog_printf("DEBUG: Update node with %O: %O\n", key, val);
+        // cog_printf("DEBUG: Update node with %O: %O\n", key, val);
         return _treenode(tree->TKEY, val, tree->TRIGHT, tree->TLEFT);
     }
     // need to recurse
-    printf("->%s", is_left ? "left" : "right");
-    fflush(stdout);
-    cog_object* newnode = _treenode(tree->TKEY, tree->TVAL, tree->TRIGHT, tree->TLEFT);
-    if (is_left) newnode->TLEFT = _iou_helper(newnode->TLEFT, key, val, rest_hash);
-    else newnode->TRIGHT = _iou_helper(newnode->TRIGHT, key, val, rest_hash);
-    return newnode;
+    bool is_left = hash < (cog_hash(tree->TKEY)->as_int);
+    // printf("->%s", is_left ? "left" : "right");
+    // fflush(stdout);
+    if (is_left) return _treenode(tree->TKEY, tree->TVAL, _iou_helper(tree->TLEFT, key, val, hash), tree->TRIGHT);
+    else return _treenode(tree->TKEY, tree->TVAL, tree->TLEFT, _iou_helper(tree->TRIGHT, key, val, hash));
+}
+
+static cog_object* _succ(cog_object* tree) {
+    tree = tree->TRIGHT;
+    while (tree != NULL && tree->TLEFT != NULL)
+        tree = tree->TLEFT;
+    return tree;
 }
 
 static cog_object* _rem_helper(cog_object* tree, cog_object* key, int64_t hash) {
     if (!tree) return NULL;
-    bool is_left = hash & 1;
-    int64_t rest_hash = hash >> 1;
-    cog_object* newtree;
 
     if (cog_equal(key, tree->TKEY)) {
         // this node is what needs to be deleted
-        if (!tree->TLEFT && !tree->TRIGHT) newtree = NULL; // leaf node gets deleted
-        // else just pick which side to delete. I chose right first else left
-        else if (tree->TRIGHT) newtree = _treenode(tree->TRIGHT->TKEY, tree->TRIGHT->TVAL, tree->TLEFT, tree->TRIGHT->TRIGHT);
-        else newtree = _treenode(tree->TLEFT->TKEY, tree->TLEFT->TVAL, tree->TLEFT->TLEFT, tree->TRIGHT);
+        // No children
+        if (!tree->TLEFT && !tree->TRIGHT) return NULL;
+        // if only one child, then just become that one
+        else if (tree->TRIGHT && !tree->TLEFT) return tree->TRIGHT;
+        else if (tree->TLEFT && !tree->TRIGHT) return tree->TLEFT;
+        else {
+            // two children
+            cog_object* next = _succ(tree);
+            return _treenode(next->TKEY, next->TVAL, tree->TLEFT, _rem_helper(tree->TRIGHT, next->TKEY, cog_hash(next->TKEY)->as_int));
+        }
     } else {
         // it's another node that needs to be deleted
-        if (is_left) newtree = _treenode(tree->TKEY, tree->TVAL, _rem_helper(tree->TLEFT, key, rest_hash), tree->TRIGHT);
-        else newtree = _treenode(tree->TKEY, tree->TVAL, tree->TLEFT, _rem_helper(tree->TRIGHT, key, rest_hash));
+        bool is_left = hash < (cog_hash(tree->TKEY)->as_int);
+        if (is_left) return _treenode(tree->TKEY, tree->TVAL, _rem_helper(tree->TLEFT, key, hash), tree->TRIGHT);
+        else return _treenode(tree->TKEY, tree->TVAL, tree->TLEFT, _rem_helper(tree->TRIGHT, key, hash));
     }
-    return newtree;
 }
 
 cog_object* cog_table_get(cog_object* tab, cog_object* key, bool* found) {
     assert(tab && tab->type == &cog_ot_table);
     cog_object* tree = tab->next; // get the internal tree
     int64_t hash = cog_hash(key)->as_int;
-    cog_printf("DEBUG: getting with hash %llX, tree is: %O\n", hash, tree);
+    // cog_printf("DEBUG: getting with hash %llX, tree is: %O\n", hash, tree);
     while (tree) {
-        cog_printf("DEBUG: looking at key %O\n", tree->TKEY);
+        // cog_printf("DEBUG: looking at key %O\n", tree->TKEY);
         if (cog_equal(tree->TKEY, key)) {
             *found = true;
             return tree->TVAL;
         }
-        bool is_left = hash & 1;
-        hash = hash >> 1;
+        bool is_left = hash < (cog_hash(tree->TKEY)->as_int);
         if (is_left) tree = tree->TLEFT;
         else tree = tree->TRIGHT;
-        printf("%s->", is_left ? "left" : "right");
-        fflush(stdout);
+        // printf("%s->", is_left ? "left" : "right");
+        // fflush(stdout);
     }
     *found = false;
     return NULL;
@@ -500,7 +508,7 @@ cog_object* cog_table_get(cog_object* tab, cog_object* key, bool* found) {
 
 cog_object* cog_table_insert_or_update(cog_object* tab, cog_object* key, cog_object* val) {
     assert(tab && tab->type == &cog_ot_table);
-    cog_printf("DEBUG: adding key %O to table\n", key);
+    // cog_printf("DEBUG: adding key %O to table\n", key);
     return _wraptab(_iou_helper(tab->next, key, val, cog_hash(key)->as_int));
 }
 
