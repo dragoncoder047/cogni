@@ -404,6 +404,26 @@ cog_object* m_list_hash() {
 }
 cog_object_method ome_list_hash = {&cog_ot_list, "Hash", m_list_hash};
 
+static cog_object* m_list_equal() {
+    cog_object* self = cog_pop();
+    cog_object* other = cog_pop();
+    if (other->type != &cog_ot_list) {
+        cog_push(cog_box_bool(false));
+        return NULL;
+    }
+    while (self && other) {
+        if (!cog_equal(self->data, other->data)) {
+            cog_push(cog_box_bool(false));
+            return NULL;
+        }
+        self = self->next;
+        other = other->next;
+    }
+    cog_push(cog_box_bool(self == other));
+    return NULL;
+}
+cog_object_method ome_list_equal = {&cog_ot_list, "Equal", m_list_equal};
+
 // MARK: TABLES
 
 cog_obj_type cog_ot_table = {"Table", cog_walk_only_next, NULL};
@@ -527,6 +547,16 @@ cog_object* cog_table_remove(cog_object* tab, cog_object* key) {
     return _wraptab(_rem_helper(tab->next, key, cog_hash(key)->as_int));
 }
 
+static cog_object* _get_values(cog_object* tab, cog_object* list) {
+    cog_push_to(&list, tab->TVAL);
+    return list;
+}
+
+static cog_object* _get_keys(cog_object* tab, cog_object* list) {
+    cog_push_to(&list, tab->TKEY);
+    return list;
+}
+
 static cog_object* _reduce_helper(cog_object* tree, cog_object* (*func)(cog_object*, cog_object*), cog_object* accum) {
     if (!tree) return accum;
     accum = _reduce_helper(tree->TLEFT, func, accum);
@@ -573,28 +603,50 @@ cog_object* m_table_hash() {
 }
 cog_object_method ome_table_hash = {&cog_ot_table, "Hash", m_table_hash};
 
+static cog_object* m_table_equal() {
+    cog_object* self = cog_pop();
+    cog_object* other = cog_pop();
+    if (other->type != &cog_ot_table) {
+        cog_push(cog_box_bool(false));
+        return NULL;
+    }
+    bool found;
+    cog_object* self_keys = cog_table_reduce(self, _get_keys, NULL);
+    cog_object* other_keys = cog_table_reduce(other, _get_keys, NULL);
+    if (cog_list_length(self_keys) != cog_list_length(other_keys)) {
+        cog_push(cog_box_bool(false));
+        return NULL;
+    }
+    COG_ITER_LIST(self_keys, key) {
+        cog_object* self_val = cog_table_get(self, key, &found);
+        if (!found) {
+            fprintf(stderr, "something is very wrong\n");
+            abort();
+        }
+        cog_object* other_val = cog_table_get(other, key, &found);
+        if (!found || !cog_equal(self_val, other_val)) {
+            cog_push(cog_box_bool(false));
+            return NULL;
+        }
+    }
+    cog_push(cog_box_bool(true));
+    return NULL;
+}
+cog_object_method ome_table_equal = {&cog_ot_table, "Equal", m_table_equal};
+
 // MARK: ENVIRONMENT
 
 void cog_defun(cog_object* identifier, cog_object* value) {
     cog_object* top_scope = COG_GLOBALS.scopes->data;
-    // TODO: do env with tables
-    cog_object* pair = cog_assoc(top_scope, identifier, cog_same_identifiers);
-    if (pair) {
-        pair->next = value;
-    } else {
-        pair = cog_make_obj(&cog_ot_list);
-        pair->data = identifier;
-        pair->next = value;
-        cog_push_to(&COG_GLOBALS.scopes->data, pair);
-    }
+    cog_object* new_scope = cog_table_insert_or_update(top_scope, identifier, value);
+    COG_GLOBALS.scopes->data = new_scope;
 }
 
 cog_object* cog_get_fun(cog_object* identifier, bool* found) {
     COG_ITER_LIST(COG_GLOBALS.scopes, scope) {
-        cog_object* pair = cog_assoc(scope, identifier, cog_same_identifiers);
-        if (pair) {
-            *found = true;
-            return pair->next;
+        cog_object* value = cog_table_get(scope, identifier, found);
+        if (*found) {
+            return value;
         }
     }
     *found = false;
@@ -602,7 +654,7 @@ cog_object* cog_get_fun(cog_object* identifier, bool* found) {
 }
 
 void cog_push_new_scope() {
-    cog_push_scope(cog_make_obj(&cog_ot_list));
+    cog_push_scope(cog_emptytab());
 }
 
 void cog_push_scope(cog_object* scope) {
@@ -791,6 +843,14 @@ static cog_object* m_int_equal_other_type() {
 }
 cog_object_method ome_int_equal_other_type = {&cog_ot_int, "Equal_OtherType", m_int_equal_other_type};
 
+static cog_object* m_int_equal() {
+    cog_object* self = cog_pop();
+    cog_object* other = cog_pop();
+    cog_push(cog_box_bool(other->type == &cog_ot_int && self->as_int == other->as_int));
+    return NULL;
+}
+cog_object_method ome_int_equal = {&cog_ot_int, "Equal", m_int_equal};
+
 cog_obj_type cog_ot_bool = {"Boolean", NULL};
 cog_object* cog_box_bool(bool i) {
     cog_object* obj = cog_make_obj(&cog_ot_bool);
@@ -820,6 +880,14 @@ static cog_object* m_bool_hash() {
     return NULL;
 }
 cog_object_method ome_bool_hash = {&cog_ot_bool, "Hash", m_bool_hash};
+
+static cog_object* m_bool_equal() {
+    cog_object* self = cog_pop();
+    cog_object* other = cog_pop();
+    cog_push(cog_box_bool(other->type == &cog_ot_bool && self->as_int == other->as_int));
+    return NULL;
+}
+cog_object_method ome_bool_equal = {&cog_ot_bool, "Equal", m_bool_equal};
 
 cog_obj_type cog_ot_float = {"Number", NULL};
 cog_object* cog_box_float(double i) {
@@ -862,6 +930,14 @@ static cog_object* m_float_equal_other_type() {
     return cog_not_implemented();
 }
 cog_object_method ome_float_equal_other_type = {&cog_ot_float, "Equal_OtherType", m_float_equal_other_type};
+
+static cog_object* m_float_equal() {
+    cog_object* self = cog_pop();
+    cog_object* other = cog_pop();
+    cog_push(cog_box_bool(other->type == &cog_ot_float && self->as_float == other->as_float));
+    return NULL;
+}
+cog_object_method ome_float_equal = {&cog_ot_float, "Equal", m_float_equal};
 
 // MARK: IDENTIFIERS
 
@@ -1036,6 +1112,14 @@ static cog_object* m_identifier_hash() {
 }
 cog_object_method ome_identifier_hash = {&cog_ot_identifier, "Hash", m_identifier_hash};
 
+static cog_object* m_identifier_equal() {
+    cog_object* self = cog_pop();
+    cog_object* other = cog_pop();
+    cog_push(cog_box_bool(other->type == &cog_ot_identifier && cog_same_identifiers(self, other)));
+    return NULL;
+}
+cog_object_method ome_identifier_equal = {&cog_ot_identifier, "Equal", m_identifier_equal};
+
 bool cog_same_identifiers(cog_object* s1, cog_object* s2) {
     if (!s1 && !s2) return true;
     if (!s1 || !s2) return false;
@@ -1074,6 +1158,14 @@ static cog_object* m_symbol_hash() {
     return NULL;
 }
 cog_object_method ome_symbol_hash = {&cog_ot_symbol, "Hash", m_symbol_hash};
+
+static cog_object* m_symbol_equal() {
+    cog_object* self = cog_pop();
+    cog_object* other = cog_pop();
+    cog_push(cog_box_bool(other->type == &cog_ot_symbol && cog_same_identifiers(self->next, other->next)));
+    return NULL;
+}
+cog_object_method ome_symbol_equal = {&cog_ot_symbol, "Equal", m_symbol_equal};
 
 // MARK: STRINGS
 
@@ -1284,6 +1376,14 @@ static cog_object* m_string_hash() {
     return NULL;
 }
 cog_object_method ome_string_hash = {&cog_ot_string, "Hash", m_string_hash};
+
+static cog_object* m_string_equal() {
+    cog_object* self = cog_pop();
+    cog_object* other = cog_pop();
+    cog_push(cog_box_bool(other->type == &cog_ot_string && cog_strcmp(self, other) == 0));
+    return NULL;
+}
+cog_object_method ome_string_equal = {&cog_ot_string, "Equal", m_string_equal};
 
 cog_object* cog_make_character(char c) {
     // a character is just a one character string
@@ -2462,7 +2562,14 @@ bool cog_equal(cog_object* a, cog_object* b) {
     else {
         cog_object* ha = cog_hash(a);
         cog_object* hb = cog_hash(b);
-        return ha && hb ? (ha->as_int == hb->as_int) : (a == b);
+        bool hashmatch = ha && hb ? (ha->as_int == hb->as_int) : (a == b);
+        if (hashmatch && a && b) {
+            cog_push(b);
+            if (!cog_same_identifiers(cog_run_well_known(b, "Equal"), cog_not_implemented())) {
+                return cog_expect_type_fatal(cog_pop(), &cog_ot_bool)->as_int;
+            }
+        }
+        return hashmatch;
     }
 }
 
@@ -3150,16 +3257,6 @@ cog_object* fn_has() {
 }
 cog_modfunc fne_has = {"Has", COG_FUNC, fn_has, "Return true if the key is in the table."};
 
-static cog_object* _get_values(cog_object* tab, cog_object* list) {
-    cog_push_to(&list, tab->TVAL);
-    return list;
-}
-
-static cog_object* _get_keys(cog_object* tab, cog_object* list) {
-    cog_push_to(&list, tab->TKEY);
-    return list;
-}
-
 cog_object* fn_values() {
     COG_ENSURE_N_ITEMS(1);
     cog_object* table = cog_pop();
@@ -3411,6 +3508,14 @@ static cog_object_method* builtin_objfunc_table[] = {
     &ome_table_hash,
     &ome_int_equal_other_type,
     &ome_float_equal_other_type,
+    &ome_int_equal,
+    &ome_bool_equal,
+    &ome_float_equal,
+    &ome_identifier_equal,
+    &ome_symbol_equal,
+    &ome_string_equal,
+    &ome_table_equal,
+    &ome_list_equal,
     NULL
 };
 

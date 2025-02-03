@@ -22,8 +22,7 @@ bool do_top(cog_object* cookie) {
     if (cog_same_identifiers(end_status, cog_error())) {
         cog_object* msg = cog_pop();
         if (msg) cog_printf("ERROR: %#O\n", msg);
-        if (isatty(fileno(stdout))) putchar('\a');
-        return false;
+        return !msg; // Stop returns a NULL error
     }
     return true;
 }
@@ -74,7 +73,9 @@ void repl() {
             free(line_input);
             if (!len) {
                 is_end = true;
-                run(the_string);
+                if (!run(the_string)) {
+                    if (isatty(fileno(stdout))) putchar('\a');
+                }
             }
         } else {
             cog_push(cog_string("Interrupted!"));
@@ -94,7 +95,6 @@ void repl() {
 void usage(const char* argv0) {
     printf("Usage: %s [filename]\n", argv0);
     printf("   or: %s -c \"commands\"\n", argv0);
-    exit(EXIT_FAILURE);
 }
 
 int main(int argc, char* argv[]) {
@@ -112,16 +112,18 @@ int main(int argc, char* argv[]) {
         cog_push_to(&params, cog_string(argv[i]));
     }
     cog_defun(cog_make_identifier_c("Parameters"), cog_make_var(params));
+    bool ok = true;
 
     cog_object* prelude = cog_string_from_bytes((char*)cognac_src_prelude_cog, cognac_src_prelude_cog_len);
     cog_object* userscript = NULL;
-    if (!run(prelude)) goto end;
+    if (!(ok = run(prelude))) goto end;
     prelude = cog_string_from_bytes((char*)prelude2_cog, prelude2_cog_len);
-    if (!run(prelude)) goto end;
+    if (!(ok = run(prelude))) goto end;
 
     // Run user script
     if (argc == 1) {
         repl();
+        ok = true;
         goto end;
     }
     else if (argc == 2) {
@@ -129,14 +131,19 @@ int main(int argc, char* argv[]) {
         userscript = cog_open_file(filename, "r");
         if (errno) {
             fprintf(stderr, "%s: %s: %s\n", argv[0], filename, strerror(errno));
+            ok = false;
             goto end;
         }
     } else if (argc == 3 && !strcmp(argv[1], "-c")) {
         userscript = cog_string(argv[2]);
-    } else usage(argv[0]);
+    } else {
+        usage(argv[0]);
+        ok = false;
+        goto end;
+    }
 
-    run(userscript);
+    ok = run(userscript);
     end:
     cog_quit();
-    return 0;
+    return ok ? EXIT_SUCCESS : EXIT_FAILURE;
 }
