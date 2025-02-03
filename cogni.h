@@ -394,6 +394,8 @@ char cog_maybe_escape_char(char, bool*);
 cog_object* cog_list_splice(cog_object**, cog_object*);
 #define cog_strcat cog_list_splice
 
+int64_t cog_list_length(cog_object*);
+
 /**
  * Duplicates a list shallowly. The items in the list are not copied.
  * This also works for duplicating a string.
@@ -417,6 +419,8 @@ void cog_push_to(cog_object**, cog_object*);
  * @return The popped object.
  */
 cog_object* cog_pop_from(cog_object** stack);
+
+cog_object* cog_table_reduce(cog_object*, cog_object* (*f)(cog_object*, cog_object*), cog_object*);
 
 /**
  * Dumps an object to a stream.
@@ -650,8 +654,8 @@ extern cog_obj_type cog_ot_continuation;
 #define COG_ENSURE_TYPE(obj, typeobj) \
     do { \
         if ((obj) == NULL || (obj)->type != typeobj) { \
-            COG_RETURN_ERROR(cog_sprintf("Expected %s, but got %s", \
-                (typeobj) ? (typeobj)->name : "NULL", (obj) && (obj)->type ? (obj)->type->name : "NULL")); \
+            COG_RETURN_ERROR(cog_sprintf("Expected %s, but got %s: %O", \
+                (typeobj) ? (typeobj)->name : "empty List", (obj) && (obj)->type ? (obj)->type->name : "empty List", (obj))); \
         } \
     } while (0)
 
@@ -670,7 +674,7 @@ extern cog_obj_type cog_ot_continuation;
 #define COG_GET_NUMBER(obj, var) \
     do { \
         if ((obj) == NULL || ((obj)->type != &cog_ot_int && (obj)->type != &cog_ot_float)) { \
-            COG_RETURN_ERROR(cog_sprintf("Expected a number, but got %s", (obj) ? (obj)->type->name : "NULL")); \
+            COG_RETURN_ERROR(cog_sprintf("Expected a number, but got %s: %O", (obj) ? (obj)->type->name : "empty List", (obj))); \
         } \
         else var = (obj)->type == &cog_ot_float ? (obj)->as_float : (obj)->as_int; \
     } while (0)

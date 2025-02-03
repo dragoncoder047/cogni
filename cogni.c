@@ -349,6 +349,15 @@ void cog_reverse_list_inplace(cog_object** list) {
     *list = prev;
 }
 
+int64_t cog_list_length(cog_object* list) {
+    int64_t len = 0;
+    while (list) {
+        len++;
+        list = list->next;
+    }
+    return len;
+}
+
 cog_object* m_list_show_recursive() {
     cog_object* obj = cog_pop();
     bool readably = cog_expect_type_fatal(cog_pop(), &cog_ot_bool)->as_int;
@@ -518,6 +527,19 @@ cog_object* cog_table_remove(cog_object* tab, cog_object* key) {
     return _wraptab(_rem_helper(tab->next, key, cog_hash(key)->as_int));
 }
 
+static cog_object* _reduce_helper(cog_object* tree, cog_object* (*func)(cog_object*, cog_object*), cog_object* accum) {
+    if (!tree) return accum;
+    accum = _reduce_helper(tree->TLEFT, func, accum);
+    accum = func(tree, accum);
+    accum = _reduce_helper(tree->TRIGHT, func, accum);
+    return accum;
+}
+
+cog_object* cog_table_reduce(cog_object* table, cog_object* (*func)(cog_object*, cog_object*), cog_object* accum) {
+    assert(table && table->type == &cog_ot_table);
+    return _reduce_helper(table->next, func, accum);
+}
+
 void _table_show_rec_helper(cog_object* tree, cog_object* alist, cog_object* stream, int64_t* counter, bool readably) {
     if (!tree) return;
     _table_show_rec_helper(tree->TLEFT, alist, stream, counter, readably);
@@ -665,7 +687,7 @@ cog_object* cog_run_well_known_strict(cog_object* obj, const char* meth) {
     cog_object* res = cog_run_well_known(obj, meth);
     if (res && cog_same_identifiers(res, COG_GLOBALS.not_impl_sym)) {
         const char* method_name = meth;
-        fprintf(stderr, "error: %s not implemented for %s\n", method_name, obj->type ? obj->type->name : "NULL");
+        fprintf(stderr, "error: %s not implemented for %s\n", method_name, obj->type ? obj->type->name : "empty List");
         COG_ITER_LIST(COG_GLOBALS.modules, modobj) {
             cog_module* mod = (cog_module*)modobj->as_ptr;
             if (mod->types == NULL) continue;
@@ -2376,7 +2398,7 @@ cog_modfunc fne_empty = {
     "Return an empty list."
 };
 
-#define GET_TYPENAME_STRING(obj) (obj && obj->type ? obj->type->name : "NULL")
+#define GET_TYPENAME_STRING(obj) (obj && obj->type ? obj->type->name : "empty List")
 #define _NUMBERBODY(op, either_float_type, both_ints_type, both_ints_cast) \
     COG_ENSURE_N_ITEMS(2); \
     cog_object* a = cog_pop(); \
@@ -3115,6 +3137,63 @@ cog_object* fn_dot() {
 }
 cog_modfunc fne_dot = {".", COG_FUNC, fn_dot, "Return the value for a key in a table."};
 
+cog_object* fn_has() {
+    COG_ENSURE_N_ITEMS(2);
+    cog_object* key = cog_pop();
+    cog_object* table = cog_pop();
+    COG_ENSURE_TYPE(table, &cog_ot_table);
+    ENSURE_HASHABLE(key);
+    bool found;
+    cog_table_get(table, key, &found);
+    cog_push(cog_box_bool(found));
+    return NULL;
+}
+cog_modfunc fne_has = {"Has", COG_FUNC, fn_has, "Return true if the key is in the table."};
+
+static cog_object* _get_values(cog_object* tab, cog_object* list) {
+    cog_push_to(&list, tab->TVAL);
+    return list;
+}
+
+static cog_object* _get_keys(cog_object* tab, cog_object* list) {
+    cog_push_to(&list, tab->TKEY);
+    return list;
+}
+
+cog_object* fn_values() {
+    COG_ENSURE_N_ITEMS(1);
+    cog_object* table = cog_pop();
+    COG_ENSURE_TYPE(table, &cog_ot_table);
+    cog_push(cog_table_reduce(table, _get_values, NULL));
+    return NULL;
+}
+cog_modfunc fne_values = {"Values", COG_FUNC, fn_values, "Return a list of all the values in the table."};
+
+cog_object* fn_keys() {
+    COG_ENSURE_N_ITEMS(1);
+    cog_object* table = cog_pop();
+    COG_ENSURE_TYPE(table, &cog_ot_table);
+    cog_push(cog_table_reduce(table, _get_keys, NULL));
+    return NULL;
+}
+cog_modfunc fne_keys = {"Keys", COG_FUNC, fn_keys, "Return a list of all the keys in the table."};
+
+static cog_object* _table_len(cog_object* _, cog_object* accum) {
+    return cog_box_int(accum->as_int + 1);
+}
+
+cog_object* fn_length() {
+    COG_ENSURE_N_ITEMS(1);
+    cog_object* x = cog_pop();
+    if (!x) cog_push(cog_box_int(0)); // empty list
+    else if (x->type == &cog_ot_list) cog_push(cog_box_int(cog_list_length(x)));
+    else if (x->type == &cog_ot_string) cog_push(cog_box_int(cog_strlen(x)));
+    else if (x->type == &cog_ot_table) cog_push(cog_table_reduce(x, _table_len, cog_box_int(0)));
+    else COG_RETURN_ERROR(cog_sprintf("%s object has no length: %O", GET_TYPENAME_STRING(x), x));
+    return NULL;
+}
+cog_modfunc fne_length = {"Length", COG_FUNC, fn_length, "Return the length of a list, string, or table."};
+
 cog_obj_type cog_ot_continuation = {"Continuation", cog_walk_both, NULL};
 
 cog_object* cog_make_continuation() {
@@ -3257,12 +3336,16 @@ static cog_modfunc* builtin_modfunc_table[] = {
     &fne_rest,
     &fne_push,
     &fne_is_empty,
+    &fne_length,
     // table functions
     &fne_table,
     &fne_list_to_tab,
     &fne_insert,
     &fne_remove,
     &fne_dot,
+    &fne_has,
+    &fne_values,
+    &fne_keys,
     // string functions
     &fne_append,
     &fne_substring,
