@@ -1,3 +1,4 @@
-Let T be Table (For num in Reverse Range 1 to 20 do (^ Swap 2 Twin));
+1 2 3 4 5 6 7 8 9 0;
+Let T be Table (Table (Table ("foo" "bar" 1 2) "baz") \foo "bam" 2);
+Print the Stack;
 Print T;
-Print Show . / 1 4 T;

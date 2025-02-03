@@ -434,8 +434,6 @@ static cog_object* _wraptab(cog_object* tree) {
     return tab;
 }
 
-// TODO: use binary search tree instead of binary path tree which is super weird
-
 static cog_object* _iou_helper(cog_object* tree, cog_object* key, cog_object* val, int64_t hash) {
     if (!tree) {
         // we got to the end without finding a existing node, so add a new one
@@ -766,6 +764,7 @@ static cog_object* m_int_equal_other_type() {
         cog_push(cog_box_bool(self->as_int == other->as_float));
         return NULL;
     }
+    cog_push(other);
     return cog_not_implemented();
 }
 cog_object_method ome_int_equal_other_type = {&cog_ot_int, "Equal_OtherType", m_int_equal_other_type};
