@@ -1,7 +1,6 @@
 #define _FORTIFY_SOURCE 3
 #include "files.h"
 #include <stdio.h>
-#include <sys/stat.h>
 #include <fcntl.h>
 
 static void closefile(cog_object* stream) {
@@ -136,6 +135,7 @@ cog_object* fn_open() {
     char* buf = (char*)alloca(len + 1);
     memset(buf, 0, len + 1);
     cog_string_to_cstring(filename, buf, len);
+    errno = 0;
     FILE* f = fopen(buf, mod);
     if (errno) COG_RETURN_ERROR(cog_sprintf("While opening %O: [Errno %i] %s", filename, errno, strerror(errno)));
     else if (!f) COG_RETURN_ERROR(cog_sprintf("Unknown error while opening %O", filename));
@@ -150,22 +150,75 @@ cog_object* fn_readfile() {
     COG_ENSURE_TYPE(file, &ot_file);
     FILE* f = (FILE*)file->as_ptr;
     if (!f) COG_RETURN_ERROR(cog_string("Tried to read a closed file"));
-    fseek(f, 0, SEEK_SET);
-    struct stat st;
-	fstat(fileno(f), &st);
-    char* b = (char*)alloca(st.st_size + 1);
-    memset(b, 0, st.st_size + 1);
-    size_t read = fread(b, sizeof(char), st.st_size, f);
-    if (read != st.st_size) COG_RETURN_ERROR(cog_sprintf("Couldn't read file %O", file->next));
-    b[st.st_size] = 0; // remove trailing EOF
-    cog_push(cog_string(b));
+    cog_object* str = cog_emptystring();
+    cog_object* tail = str;
+    for (int ch = fgetc(f); ch != EOF; ch = fgetc(f))
+        cog_string_append_byte(&tail, ch);
+    cog_push(str);
     return NULL;
 }
-cog_modfunc fne_readfile = {"Read-file", COG_FUNC, fn_readfile, "Read the entire contents of the file into a string."};
+cog_modfunc fne_readfile = {"Read-File", COG_FUNC, fn_readfile, "Read the entire contents of the file into a string, from beginning to end."};
+
+cog_object* fn_seek() {
+    COG_ENSURE_N_ITEMS(3);
+    cog_object* how = cog_pop();
+    cog_object* where = cog_pop();
+    cog_object* what = cog_pop();
+    COG_ENSURE_TYPE(how, &cog_ot_symbol);
+    float n = 0;
+    COG_GET_NUMBER(where, n);
+    COG_ENSURE_TYPE(what, &ot_file);
+    int w = SEEK_SET;
+    FILE* f = (FILE*)what->as_ptr;
+    if (!f) COG_RETURN_ERROR(cog_string("Tried to seek a closed file"));
+    if (cog_same_identifiers(how->next, cog_make_identifier_c("start"))) w = SEEK_SET;
+    else if (cog_same_identifiers(how->next, cog_make_identifier_c("end"))) w = SEEK_END;
+    else if (cog_same_identifiers(how->next, cog_make_identifier_c("current"))) w = SEEK_CUR;
+    else COG_RETURN_ERROR(cog_sprintf("Expected one of \\start, \\end, \\current but got %O", how));
+    long nf = n;
+    if (nf != n) COG_RETURN_ERROR(cog_sprintf("can't seek to a non-integer offset: %O", where));
+    int err = fseek(f, n, w);
+    if (err) COG_RETURN_ERROR(cog_sprintf("failed to seek to %O for %O", where, how));
+    return NULL;
+}
+cog_modfunc fne_seek = {"Seek", COG_FUNC, fn_seek, "Seeks a file to a particular offset,"};
+
+cog_object* fn_readline() {
+    COG_ENSURE_N_ITEMS(1);
+    cog_object* file = cog_pop();
+    COG_ENSURE_TYPE(file, &ot_file);
+    FILE* f = (FILE*)file->as_ptr;
+    if (!f) COG_RETURN_ERROR(cog_string("Tried to read a closed file"));
+    cog_object* str = cog_emptystring();
+    cog_object* tail = str;
+    int ch;
+    do {
+        ch = fgetc(f);
+        cog_string_append_byte(&tail, ch);
+    } while (ch != '\n');
+    cog_push(str);
+    return NULL;
+}
+cog_modfunc fne_readline = {"Read-Line", COG_FUNC, fn_readline, "Read a line of text from the file, until and including the next newline (ASCII 0x0A) character."};
+
+cog_object* fn_close() {
+    COG_ENSURE_N_ITEMS(1);
+    cog_object* file = cog_pop();
+    COG_ENSURE_TYPE(file, &ot_file);
+    FILE* f = (FILE*)file->as_ptr;
+    if (!f) COG_RETURN_ERROR(cog_string("File is already closed"));
+    fclose(f);
+    file->as_ptr = NULL;
+    return NULL;
+}
+cog_modfunc fne_close = {"Close", COG_FUNC, fn_close, "Close an opened file."};
 
 cog_modfunc* m_file_functions[] = {
     &fne_open,
     &fne_readfile,
+    &fne_readline,
+    &fne_seek,
+    &fne_close,
     NULL
 };
 

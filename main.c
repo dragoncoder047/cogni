@@ -10,21 +10,9 @@
 
 #include "cogni.h"
 #include "files.h"
+#include "misc_io.h"
 #include "prelude.inc"
 #include "prelude2.inc"
-
-cog_object* fn_test() {
-    cog_printf("Hello, World! The top item is %O\n", cog_pop());
-    return NULL;
-}
-cog_modfunc af_test = {"Test-builtin", COG_FUNC, fn_test, "test functionality"};
-
-cog_modfunc* m_test_table[] = {
-    &af_test,
-    NULL
-};
-
-cog_module test = {"Test", m_test_table, NULL, NULL};
 
 bool do_top(cog_object* cookie) {
     cog_run_next(cog_pop(), NULL, cookie);
@@ -110,11 +98,18 @@ void usage(const char* argv0) {
 
 int main(int argc, char* argv[]) {
     cog_init();
-    cog_add_module(&test);
     cog_add_module(&m_file);
+    cog_add_module(&m_misc_io);
     cog_set_stdout(cog_open_file("/dev/stdout", "w"));
     cog_set_stdin(cog_open_file("/dev/stdin", "r"));
     cog_set_stderr(cog_open_file("/dev/stderr", "w"));
+
+    // push parameters
+    cog_object* params = NULL;
+    for (int i = argc - 1; i >= 0; i--) {
+        cog_push_to(&params, cog_string(argv[i]));
+    }
+    cog_defun(cog_make_identifier_c("Parameters"), cog_make_var(params));
 
     cog_object* prelude = cog_string_from_bytes((char*)cognac_src_prelude_cog, cognac_src_prelude_cog_len);
     cog_object* userscript = NULL;
