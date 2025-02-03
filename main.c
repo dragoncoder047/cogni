@@ -10,6 +10,7 @@
 
 #include "cogni.h"
 #include "files.h"
+#include "cog_regex.h"
 #include "misc_io.h"
 #include "prelude.inc"
 #include "prelude2.inc"
@@ -100,6 +101,7 @@ int main(int argc, char* argv[]) {
     cog_init();
     cog_add_module(&m_file);
     cog_add_module(&m_misc_io);
+    cog_add_module(&m_regex);
     cog_set_stdout(cog_open_file("/dev/stdout", "w"));
     cog_set_stdin(cog_open_file("/dev/stdin", "r"));
     cog_set_stderr(cog_open_file("/dev/stderr", "w"));
