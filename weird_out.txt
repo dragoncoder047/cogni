@@ -1,16 +1,13 @@
-cognate> Let X be Filter (Not Zero?) over List (1 2 3 0 2 4 0 1 0 3 0 0 0 7);
+cognate> Let X 1
     ...> 
 Stack empty
-cognate> X
+cognate> Def Drop (Let X)
     ...> 
-Stack: ((1 2 3 2 4 1 3 7))
-cognate> Def Drop as (Let X;)
-    ...> 
-Stack: ((1 2 3 2 4 1 3 7))
-cognate> Let X be Filter (Not Zero?) over List (1 2 3 0 2 4 0 1 0 3 0 0 0 7);
+Stack empty
+cognate> Filter
     ...> 
 ERROR: undefined: Filter
-Stack: (#<Closure: 0x14c8b70e0 0x14b00c100> (1 2 3 0 2 4 0 1 0 3 0 0 0 7) (1 2 3 2 4 1 3 7))
+Stack empty
 cognate> ~~ This is with the new table environments
     ...> ~~ Something is very wrong with tables
     ...> ^D

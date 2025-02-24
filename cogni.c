@@ -638,7 +638,10 @@ cog_object_method ome_table_equal = {&cog_ot_table, "Equal", m_table_equal};
 
 void cog_defun(cog_object* identifier, cog_object* value) {
     cog_object* top_scope = COG_GLOBALS.scopes->data;
+    // bool x;
+    // cog_printf("DEBUG: before defun existing value = %O for key %O\n", cog_table_get(top_scope, identifier, &x), identifier);
     cog_object* new_scope = cog_table_insert_or_update(top_scope, identifier, value);
+    // cog_printf("DEBUG: after defun new value = %O for key %O\n", cog_table_get(new_scope, identifier, &x), identifier);
     COG_GLOBALS.scopes->data = new_scope;
 }
 
