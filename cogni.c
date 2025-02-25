@@ -1504,6 +1504,13 @@ cog_object* m_iostring_show() {
 }
 cog_object_method ome_iostring_show = {&ot_iostring, "Show", m_iostring_show};
 
+cog_object* m_iostring_get_name() {
+    cog_pop(); // ignore self
+    cog_push(cog_string("<string>"));
+    return NULL;
+}
+cog_object_method ome_iostring_get_name = {&ot_iostring, "Stream::Get_Name", m_iostring_get_name};
+
 // MARK: BUILTIN FUNCTION OBJECTS
 
 cog_obj_type ot_bfunction = {"BuiltinFunction", NULL};
@@ -3390,6 +3397,7 @@ static cog_object_method* builtin_objfunc_table[] = {
     &ome_iostring_getch,
     &ome_iostring_ungets,
     &ome_iostring_show,
+    &ome_iostring_get_name,
     &ome_bfunction_exec,
     &ome_closure_exec,
     &ome_block_exec,

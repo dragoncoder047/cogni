@@ -99,6 +99,13 @@ static cog_object* m_file_stringify() {
 }
 cog_object_method ome_file_stringify = {&ot_file, "Show", m_file_stringify};
 
+static cog_object* m_file_get_name() {
+    cog_object* file = cog_pop();
+    cog_push(file->next);
+    return NULL;
+}
+cog_object_method ome_file_get_name = {&ot_file, "Stream::Get_Name", m_file_get_name};
+
 cog_object_method ome_file_hash = {&ot_file, "Hash", cog_not_implemented};
 
 cog_object_method* m_file_table[] = {
@@ -106,6 +113,7 @@ cog_object_method* m_file_table[] = {
     &ome_file_getch,
     &ome_file_ungets,
     &ome_file_stringify,
+    &ome_file_get_name,
     &ome_file_hash,
     NULL
 };
@@ -181,7 +189,7 @@ cog_object* fn_seek() {
     if (err) COG_RETURN_ERROR(cog_sprintf("failed to seek to %O for %O", where, how));
     return NULL;
 }
-cog_modfunc fne_seek = {"Seek", COG_FUNC, fn_seek, "Seeks a file to a particular offset,"};
+cog_modfunc fne_seek = {"Seek", COG_FUNC, fn_seek, "Seeks a file to a particular offset."};
 
 cog_object* fn_readline() {
     COG_ENSURE_N_ITEMS(1);
@@ -207,7 +215,9 @@ cog_object* fn_close() {
     COG_ENSURE_TYPE(file, &ot_file);
     FILE* f = (FILE*)file->as_ptr;
     if (!f) COG_RETURN_ERROR(cog_string("File is already closed"));
-    fclose(f);
+    if (f != stdin && f != stdout && f != stderr) {
+        fclose(f);
+    }
     file->as_ptr = NULL;
     return NULL;
 }
