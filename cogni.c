@@ -274,7 +274,7 @@ void cog_add_module(cog_module* module) {
 // MARK: UTILITY
 
 cog_object* cog_expect_type_fatal(cog_object* obj, cog_obj_type* t) {
-    assert(obj->type == t);
+    assert(obj && obj->type == t);
     return obj;
 }
 
@@ -1425,19 +1425,24 @@ cog_object* cog_empty_io_string() {
     stream->data = cog_box_int(0); // the cursor position
     stream->next = cog_make_obj(&cog_ot_list);
     stream->next->data = cog_emptystring(); // the ungetc stack
-    stream->next->next = cog_emptystring(); // the actual contents
+    stream->next->next = cog_make_obj(&cog_ot_list);
+    stream->next->next->data = cog_emptystring(); // the actual contents
+    stream->next->next->next = cog_string("<string>"); // the name of the string stream
     return stream;
 }
 
 cog_object* cog_iostring_wrap(cog_object* string) {
     cog_object* stream = cog_empty_io_string();
-    stream->next->next = string;
+    stream->next->next->data = cog_expect_type_fatal(string, &cog_ot_string);
     return stream;
 }
 
 cog_object* cog_iostring_get_contents(cog_object* stream) {
-    assert(stream && stream->type == &ot_iostring);
-    return stream->next->next;
+    return cog_expect_type_fatal(stream, &ot_iostring)->next->next->data;
+}
+
+void cog_iostring_set_name(cog_object* stream, cog_object* name) {
+    cog_expect_type_fatal(stream, &ot_iostring)->next->next->next = cog_expect_type_fatal(name, &cog_ot_string);
 }
 
 static cog_object* m_iostring_write() {
@@ -1505,8 +1510,8 @@ cog_object* m_iostring_show() {
 cog_object_method ome_iostring_show = {&ot_iostring, "Show", m_iostring_show};
 
 cog_object* m_iostring_get_name() {
-    cog_pop(); // ignore self
-    cog_push(cog_string("<string>"));
+    cog_object* stream = cog_pop();
+    cog_push(stream->next->next->next); // return the name of the string stream
     return NULL;
 }
 cog_object_method ome_iostring_get_name = {&ot_iostring, "Stream::Get_Name", m_iostring_get_name};
@@ -3380,7 +3385,6 @@ static cog_modfunc* builtin_modfunc_table[] = {
 };
 
 static cog_object_method* builtin_objfunc_table[] = {
-    // ...existing code...
     &ome_int_show,
     &ome_int_exec,
     &ome_bool_show,

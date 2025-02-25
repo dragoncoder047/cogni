@@ -28,8 +28,12 @@ bool do_top(cog_object* cookie) {
     return true;
 }
 
-bool run(cog_object* obj) {
+bool run(cog_object* obj, const char* what) {
     // parse it
+    if (obj->type == &cog_ot_string) {
+        obj = cog_iostring_wrap(obj);
+        cog_iostring_set_name(obj, cog_string(what));
+    }
     cog_push(obj);
     cog_push(cog_make_identifier_c("Parse"));
     if (!do_top(NULL)) return false;
@@ -74,7 +78,7 @@ void repl() {
             free(line_input);
             if (!len) {
                 is_end = true;
-                run(the_string);
+                run(the_string, "<input>");
             }
         } else {
             cog_push(cog_string("Interrupted!"));
@@ -94,6 +98,7 @@ void repl() {
 void usage(const char* argv0) {
     printf("Usage: %s [filename]\n", argv0);
     printf("   or: %s -c \"commands\"\n", argv0);
+    cog_quit();
     exit(EXIT_FAILURE);
 }
 
@@ -115,9 +120,9 @@ int main(int argc, char* argv[]) {
 
     cog_object* prelude = cog_string_from_bytes((char*)cognac_src_prelude_cog, cognac_src_prelude_cog_len);
     cog_object* userscript = NULL;
-    if (!run(prelude)) goto end;
+    if (!run(prelude, "<prelude>")) goto end;
     prelude = cog_string_from_bytes((char*)prelude2_cog, prelude2_cog_len);
-    if (!run(prelude)) goto end;
+    if (!run(prelude, "<prelude2>")) goto end;
 
     // Run user script
     if (argc == 1) {
@@ -135,7 +140,7 @@ int main(int argc, char* argv[]) {
         userscript = cog_string(argv[2]);
     } else usage(argv[0]);
 
-    run(userscript);
+    run(userscript, "<string>");
     end:
     cog_quit();
     return 0;

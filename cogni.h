@@ -327,6 +327,8 @@ cog_object* cog_iostring_wrap(cog_object*);
 
 cog_object* cog_iostring_get_contents(cog_object*);
 
+void cog_iostring_set_name(cog_object*, cog_object*);
+
 /**
  * Writes a literal character to a stream.
  */
