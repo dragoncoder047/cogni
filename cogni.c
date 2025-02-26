@@ -358,6 +358,24 @@ int64_t cog_list_length(cog_object* list) {
     return len;
 }
 
+cog_object* cog_tuple(size_t n, ...) {
+    va_list args;
+    va_start(args, n);
+    cog_object* out = NULL;
+    cog_object** tail = &out;
+    while (n > 0) {
+        cog_object* item = va_arg(args, cog_object*);
+        cog_object* cell = cog_make_obj(&cog_ot_list);
+        cell->data = item;
+        cell->next = NULL;
+        *tail = cell;
+        tail = &(cell->next);
+        n--;
+    }
+    va_end(args);
+    return out;
+}
+
 cog_object* m_list_show_recursive() {
     cog_object* obj = cog_pop();
     bool readably = cog_expect_type_fatal(cog_pop(), &cog_ot_bool)->as_int;

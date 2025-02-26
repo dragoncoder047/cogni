@@ -407,6 +407,8 @@ cog_object* cog_clone_list_shallow(cog_object*);
 
 void cog_reverse_list_inplace(cog_object**);
 
+cog_object* cog_tuple(size_t n, ...);
+
 /**
  * Pushes an object onto a stack.
  * @param stack A pointer to the stack to push the object onto,
