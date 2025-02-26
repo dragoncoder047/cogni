@@ -390,7 +390,7 @@ char cog_maybe_escape_char(char, bool*);
 
 /**
  * Destructively splices two lists or strings together.
- * @param l1 Pointer to the first list or string, which will be modified to point to the second list or string.
+ * @param l1 Pointer to the first list or string, the last cell of which will be modified to point to the second list or string.
  * @return The spliced list or string. Usually the same as `*l1` but not always.
  */
 cog_object* cog_list_splice(cog_object**, cog_object*);

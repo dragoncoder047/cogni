@@ -883,12 +883,16 @@ cog_object_method ome_float_equal_other_type = {&cog_ot_float, "Equal_OtherType"
 
 // MARK: IDENTIFIERS
 
-static cog_object* walk_identifier(cog_object* i, cog_walk_fun f, cog_object* arg) {
-    (void)arg;
-    if (i->as_int) return NULL;
-    return i->next;
-}
-cog_obj_type cog_ot_identifier = {"Identifier", walk_identifier};
+// Identifier layout is as follows:
+// If it is a packed or builtin identifier:
+//  - the data pointer (or as_int field) contains the data
+//  - the next pointer is a cons (NULL WHERE)
+// If it is a long symbol:
+//  - the data pointer is NULL
+//  - the next pointer is a cons (STRING WHERE)
+// And the WHERE pointer is NULL if it is synthetic, otherwise it is a list (FILENAME LINE COLUMN)
+
+cog_obj_type cog_ot_identifier = {"Identifier", cog_walk_only_next};
 
 // TODO: parameterize / calculate this constant at compile time
 #define MAXPACKED 11
@@ -945,11 +949,10 @@ cog_object* cog_explode_identifier(cog_object* i, bool cap_first) {
         }
     } else if (i->as_fun != NULL) {
         // builtin identifier
-        for (const char* s = i->as_fun->name; *s; s++)
-            cog_string_append_byte(&tail, *s);
+        buffer = cog_string(i->as_fun->name);
     } else {
         // long identifier
-        buffer = i->next;
+        buffer = i->next->data;
     }
     return buffer;
 }
@@ -957,6 +960,7 @@ cog_object* cog_explode_identifier(cog_object* i, bool cap_first) {
 cog_object* cog_make_identifier_c(const char* const name) {
     // TODO: intern?
     cog_object* out = cog_make_obj(&cog_ot_identifier);
+    out->next = cog_make_obj(&cog_ot_list);
     // first try the builtin function names
     COG_ITER_LIST(COG_GLOBALS.modules, modobj) {
         cog_module* mod = (cog_module*)modobj->as_ptr;
@@ -978,13 +982,14 @@ cog_object* cog_make_identifier_c(const char* const name) {
         goto done;
     }
     // then default to long identifier
-    out->next = cog_string(name);
+    out->next->data = cog_string(name);
     done:
     return out;
 }
 
 cog_object* cog_make_identifier(cog_object* string) {
     cog_object* out = cog_make_obj(&cog_ot_identifier);
+    out->next = cog_make_obj(&cog_ot_list);
     // first try the builtin function names
     COG_ITER_LIST(COG_GLOBALS.modules, modobj) {
         cog_module* mod = (cog_module*)modobj->as_ptr;
@@ -1006,9 +1011,14 @@ cog_object* cog_make_identifier(cog_object* string) {
         goto done;
     }
     // then default to long identifier
-    out->next = string;
+    out->next->data = string;
     done:
     return out;
+}
+
+void cog_identifier_set_location(cog_object* ident, cog_object* filename, cog_object* line, cog_object* col) {
+    ident->next->next = cog_tuple(2, filename, line);
+    cog_list_splice(&ident->next->next, col);
 }
 
 cog_object* m_show_identifier() {
@@ -1035,7 +1045,7 @@ cog_object* m_run_identifier() {
         return NULL;
     } else {
         // use builtin identifier if available or throw undefined
-        if (!self->next && (self->as_packed_sym & 1) == 0 && self->as_packed_sym != 0) {
+        if ((self->as_packed_sym & 1) == 0 && self->as_packed_sym != 0) {
             cog_run_next(cog_make_bfunction(self->as_fun), NULL, cookie);
             return NULL;
         } else {
@@ -1745,6 +1755,8 @@ char cog_unescape_char(char c) {
 const char doc_parser_internals[] = "Parser Internal -- you should never see this.";
 
 static void run_nextitem_next(cog_object* stream, cog_object* ibuf) {
+    // cog_object* cookie = cog_tuple(4, stream, COG_GLOBALS.modules, ibuf, cog_box_int(0));
+    // cog_list_splice(&cookie, cog_emptystring());
     cog_object* cookie = cog_emptystring();
     cog_push_to(&cookie, cog_box_int(0));
     cog_push_to(&cookie, ibuf);
@@ -2091,7 +2103,7 @@ cog_object* fn_parser_handle_identifiers() {
     cog_object* s = cookie->data;
     if (s->type == &cog_ot_string) {
         char first = cog_nthchar(s, 0);
-        if (!isalpha(first) || (toupper(first) == first && all_valid_for_ident(s))) {
+        if ((!isalpha(first) || toupper(first) == first) && all_valid_for_ident(s)) {
             // defined identifier
             cog_push(cog_make_identifier(s));
             return NULL;
@@ -3553,32 +3565,31 @@ void vprint_inner(cog_object* stream, const char* fmt, va_list args) {
                 case 'd': case 'i': case 'u': case 'o': case 'x': case 'X': case 'c': {
                     int val = va_arg(args, int);
                     asprintf(&buffer, format, val);
-                    goto done;
+                    break;
                 }
                 case 'f': case 'F': case 'e': case 'E': case 'g': case 'G': case 'a': case 'A': {
                     double val = va_arg(args, double);
                     asprintf(&buffer, format, val);
-                    goto done;
+                    break;
                 }
                 case 's': {
                     char* val = va_arg(args, char*);
                     asprintf(&buffer, format, val);
-                    goto done;
+                    break;
                 }
                 case 'p': {
                     void* val = va_arg(args, void*);
                     asprintf(&buffer, format, val);
-                    goto done;
+                    break;
                 }
                 case '%': {
                     asprintf(&buffer, "%%");
-                    goto done;
+                    break;
                 }
                 default:
                     fprintf(stderr, "bad format %s\n", format);
                     abort();
             }
-            done:
             cog_fputs_imm(stream, buffer);
             free(buffer);
             afterprint:
