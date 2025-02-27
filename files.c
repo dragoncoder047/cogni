@@ -106,6 +106,33 @@ static cog_object* m_file_get_name() {
 }
 cog_object_method ome_file_get_name = {&ot_file, "Stream::Get_Name", m_file_get_name};
 
+cog_object* m_file_tell_linecol() {
+    cog_object* file = cog_pop();
+    FILE* f = (FILE*)file->as_ptr;
+    long pos = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    int64_t line = 1, col = 1;
+    for (long i = 0; i < pos; i++) {
+        char ch = fgetc(f);
+        if (ch == '\n') {
+            line++;
+            col = 1;
+        } else {
+            col++;
+        }
+    }
+
+    fseek(f, pos, SEEK_SET);
+    assert(ftell(f) == pos);
+
+    cog_object* result = cog_tuple(2, cog_box_int(line), cog_box_int(col));
+    cog_push(result);
+    return NULL;
+}
+
+cog_object_method ome_file_tell_linecol = {&ot_file, "Stream::Tell_LineCol", m_file_tell_linecol};
+
 cog_object_method ome_file_hash = {&ot_file, "Hash", cog_not_implemented};
 
 cog_object_method* m_file_table[] = {
@@ -114,6 +141,7 @@ cog_object_method* m_file_table[] = {
     &ome_file_ungets,
     &ome_file_stringify,
     &ome_file_get_name,
+    &ome_file_tell_linecol,
     &ome_file_hash,
     NULL
 };

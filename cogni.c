@@ -958,7 +958,6 @@ cog_object* cog_explode_identifier(cog_object* i, bool cap_first) {
 }
 
 cog_object* cog_make_identifier_c(const char* const name) {
-    // TODO: intern?
     cog_object* out = cog_make_obj(&cog_ot_identifier);
     out->next = cog_make_obj(&cog_ot_list);
     // first try the builtin function names
@@ -1017,8 +1016,7 @@ cog_object* cog_make_identifier(cog_object* string) {
 }
 
 void cog_identifier_set_location(cog_object* ident, cog_object* filename, cog_object* line, cog_object* col) {
-    ident->next->next = cog_tuple(2, filename, line);
-    cog_list_splice(&ident->next->next, col);
+    ident->next->next = cog_tuple(3, filename, line, col);
 }
 
 cog_object* m_show_identifier() {
@@ -1543,6 +1541,31 @@ cog_object* m_iostring_get_name() {
     return NULL;
 }
 cog_object_method ome_iostring_get_name = {&ot_iostring, "Stream::Get_Name", m_iostring_get_name};
+
+cog_object* m_iostring_tell_linecol() {
+    cog_object* stream = cog_pop();
+    int64_t pos = stream->data->as_int;
+    cog_object* data = cog_iostring_get_contents(stream);
+
+    int64_t line = 1;
+    int64_t col = 1;
+    while (data) {
+        for (int i = 0; i < data->stored_chars; i++) {
+            char ch = data->as_chars[i];
+            if (ch == '\n') {
+                line++;
+                col = 1;
+            } else {
+                col++;
+            }
+        }
+    }
+
+    cog_object* result = cog_tuple(2, cog_box_int(line), cog_box_int(col));
+    cog_push(result);
+    return NULL;
+}
+cog_object_method ome_iostring_tell_linecol = {&ot_iostring, "Stream::Tell_LineCol", m_iostring_tell_linecol};
 
 // MARK: BUILTIN FUNCTION OBJECTS
 
@@ -2105,7 +2128,13 @@ cog_object* fn_parser_handle_identifiers() {
         char first = cog_nthchar(s, 0);
         if ((!isalpha(first) || toupper(first) == first) && all_valid_for_ident(s)) {
             // defined identifier
-            cog_push(cog_make_identifier(s));
+            cog_object* the_identifier = cog_make_identifier(s);
+            cog_run_well_known_strict(cookie->next, "Stream::Get_Name");
+            cog_object* filename = cog_pop();
+            cog_run_well_known_strict(cookie->next, "Stream::Tell_LineCol");
+            cog_object* where = cog_pop();
+            cog_identifier_set_location(the_identifier, filename, where->data, where->next->data);
+            cog_push(the_identifier);
             return NULL;
         }
     }
@@ -3453,6 +3482,7 @@ static cog_object_method* builtin_objfunc_table[] = {
     &ome_table_hash,
     &ome_int_equal_other_type,
     &ome_float_equal_other_type,
+    &ome_iostring_tell_linecol,
     NULL
 };
 
