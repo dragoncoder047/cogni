@@ -1,16 +1,3 @@
-~~ helper for from inside ==
-Def SameLists as (
-    Let L1 be List!;
-    Let L2 be List!;
-    Do If Empty? L1 then (Empty? L2) else (
-        Let D1 be the First of L1;
-        Let D2 be the First of L2;
-        Do If == D1 D2 then (
-            SameLists Rest of L1 and Rest of L2
-        ) else False;
-    );
-);
-
 ~~ easy here - change-of-base formula
 Def Log as (Let Base; Let X; / Ln Base Ln X);
 
