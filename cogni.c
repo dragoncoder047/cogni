@@ -2171,6 +2171,7 @@ cog_object* fn_parser_handle_string() {
     cog_object* buffer = cog_emptystring();
     cog_object* tail = buffer;
     char ch;
+    char hex[3];
     for (;;) {
         ch = cog_getch(stream);
         if (ch == '"') break;
@@ -2181,7 +2182,6 @@ cog_object* fn_parser_handle_string() {
             if (ch == 'x') {
                 // \x escapes are not in cognac but github copilot
                 // gave this to me for free and it works so why not
-                char hex[3];
                 hex[0] = cog_getch(stream);
                 hex[1] = cog_getch(stream);
                 hex[2] = 0;
@@ -2207,7 +2207,7 @@ cog_object* fn_parser_handle_string() {
     return cog_error();
 
     badescape:
-    cog_push(cog_string("bad hex escape sequence in string"));
+    cog_push(cog_sprintf("bad hex escape sequence in string '\\x%c%c'", hex[0], hex[1]));
     return cog_error();
 }
 cog_modfunc fne_parser_handle_string = {
