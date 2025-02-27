@@ -198,6 +198,7 @@ static void gc() {
     cog_walk(COG_GLOBALS.stack, markobject, NULL);
     cog_walk(COG_GLOBALS.command_queue, markobject, NULL);
     cog_walk(COG_GLOBALS.scopes, markobject, NULL);
+    cog_walk(COG_GLOBALS.context, markobject, NULL);
     cog_walk(COG_GLOBALS.error_sym, markobject, NULL);
     cog_walk(COG_GLOBALS.not_impl_sym, markobject, NULL);
     cog_walk(COG_GLOBALS.on_exit_sym, markobject, NULL);
