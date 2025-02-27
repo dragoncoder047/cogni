@@ -254,6 +254,7 @@ void cog_quit() {
     COG_GLOBALS.command_queue = NULL;
     COG_GLOBALS.stack = NULL;
     COG_GLOBALS.scopes = NULL;
+    COG_GLOBALS.context = NULL;
     COG_GLOBALS.error_sym = NULL;
     COG_GLOBALS.not_impl_sym = NULL;
     COG_GLOBALS.on_enter_sym = NULL;

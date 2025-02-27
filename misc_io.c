@@ -1,5 +1,6 @@
 #define _FORTIFY_SOURCE 3
-#include "files.h"
+
+#include "misc_io.h"
 #include <stdio.h>
 #include <unistd.h>
 

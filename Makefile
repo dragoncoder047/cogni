@@ -3,9 +3,9 @@
 test: stresstest cleanexec
 
 CFLAGS += -g1 -O0 -Wuninitialized -Wno-unused-command-line-argument -lm -lreadline
-ifeq ($(MODE), cpp)
+ifeq ($(CPP), 1)
 	CC := g++
-	CFLAGS += --std=gnu++2c
+	CFLAGS += --std=gnu++2c -Wdeprecated
 else
 	CFLAGS += --std=gnu2x
 endif
