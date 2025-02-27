@@ -6,7 +6,7 @@
 cog_object* fn_path() {
     char buf[FILENAME_MAX];
     errno = 0;
-	if (!getcwd(buf, FILENAME_MAX)) COG_RETURN_ERROR(cog_sprintf("Couldn't get current path: [Errno %i] %s", errno, strerror(errno)));
+	if (!getcwd(buf, FILENAME_MAX)) COG_RETURN_ERROR(System-error, cog_sprintf("Couldn't get current path: [Errno %i] %s", errno, strerror(errno)));
     cog_push(cog_string(buf));
     return NULL;
 }

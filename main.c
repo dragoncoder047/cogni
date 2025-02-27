@@ -21,7 +21,7 @@ bool do_top(cog_object* cookie) {
 
     if (cog_same_identifiers(end_status, cog_error())) {
         cog_object* msg = cog_pop();
-        if (msg) cog_printf("ERROR: %#O\n", msg);
+        if (msg) cog_printf("%#O\n", msg);
         if (isatty(fileno(stdout))) putchar('\a');
         return false;
     }
@@ -102,6 +102,8 @@ void usage(const char* argv0) {
     exit(EXIT_FAILURE);
 }
 
+#define EXIT_INTERNAL_ERROR 2
+
 int main(int argc, char* argv[]) {
     cog_init();
     cog_add_module(&m_file);
@@ -118,11 +120,18 @@ int main(int argc, char* argv[]) {
     }
     cog_defun(cog_make_identifier_c("Parameters"), cog_make_var(params));
 
+    int status = EXIT_SUCCESS;
     cog_object* prelude = cog_string_from_bytes((char*)cognac_src_prelude_cog, cognac_src_prelude_cog_len);
     cog_object* userscript = NULL;
-    if (!run(prelude, "<prelude>")) goto end;
+    if (!run(prelude, "<prelude>")) {
+        status = EXIT_INTERNAL_ERROR;
+        goto end;
+    }
     prelude = cog_string_from_bytes((char*)prelude2_cog, prelude2_cog_len);
-    if (!run(prelude, "<prelude2>")) goto end;
+    if (!run(prelude, "<prelude2>")) {
+        status = EXIT_INTERNAL_ERROR;
+        goto end;
+    }
 
     // Run user script
     if (argc == 1) {
@@ -134,14 +143,16 @@ int main(int argc, char* argv[]) {
         userscript = cog_open_file(filename, "r");
         if (errno) {
             fprintf(stderr, "%s: %s: %s\n", argv[0], filename, strerror(errno));
+            status = EXIT_FAILURE;
             goto end;
         }
     } else if (argc == 3 && !strcmp(argv[1], "-c")) {
         userscript = cog_string(argv[2]);
     } else usage(argv[0]);
 
-    run(userscript, "<string>");
+    bool ok = run(userscript, "<string>");
+    status = ok ? EXIT_SUCCESS : EXIT_FAILURE;
     end:
     cog_quit();
-    return 0;
+    return status;
 }

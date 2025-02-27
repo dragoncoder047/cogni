@@ -67,6 +67,7 @@ static struct {
     cog_object* stack;
     cog_object* command_queue;
     cog_object* scopes;
+    cog_object* context;
 
     cog_object* error_sym;
     cog_object* not_impl_sym;
@@ -112,6 +113,10 @@ void cog_set_stderr(cog_object* stream) {
 
 void cog_set_stdin(cog_object* stream) {
     COG_GLOBALS.stdin_stream = stream;
+}
+
+cog_object* cog_get_context() {
+    return COG_GLOBALS.context;
 }
 
 // MARK: GC
@@ -311,15 +316,14 @@ cog_object* cog_pop_from(cog_object** stack) {
 cog_object* cog_clone_list_shallow(cog_object* list) {
     if (list == NULL) return NULL;
     cog_obj_type* t = list->type;
-    cog_object* out = cog_make_obj(t);
-    cog_object* tail = out;
+    cog_object* out = NULL;
+    cog_object** tail = &out;
     while (list) {
-        tail->data = list->data;
-        tail->next = cog_make_obj(t);
-        tail = tail->next;
+        *tail = cog_make_obj(t);
+        (*tail)->data = list->data;
+        tail = &((*tail)->next);
         list = list->next;
     }
-    tail->next = NULL;
     return out;
 }
 
@@ -378,14 +382,14 @@ cog_object* cog_tuple(size_t n, ...) {
 
 cog_object* m_list_show_recursive() {
     cog_object* obj = cog_pop();
-    bool readably = cog_expect_type_fatal(cog_pop(), &cog_ot_bool)->as_int;
+    bool repr = cog_expect_type_fatal(cog_pop(), &cog_ot_bool)->as_int;
     cog_object* stream = cog_pop();
     cog_object* alist = cog_pop();
     int64_t* counter = (int64_t*)cog_pop()->as_ptr;
 
     cog_fputchar_imm(stream, '(');
     for (;;) {
-        cog_print_refs_recursive(obj->data, alist, stream, counter, readably);
+        cog_print_refs_recursive(obj->data, alist, stream, counter, repr);
         obj = obj->next;
         int64_t ref = cog_rec_get_refnum(obj, alist, counter);
         if (ref) {
@@ -401,7 +405,7 @@ cog_object* m_list_show_recursive() {
     }
     if (obj) {
         cog_fputs_imm(stream, " . ");
-        cog_print_refs_recursive(obj, alist, stream, counter, readably);
+        cog_print_refs_recursive(obj, alist, stream, counter, repr);
     }
     cog_fputchar_imm(stream, ')');
     return NULL;
@@ -558,25 +562,25 @@ cog_object* cog_table_reduce(cog_object* table, cog_object* (*func)(cog_object*,
     return _reduce_helper(table->next, func, accum);
 }
 
-void _table_show_rec_helper(cog_object* tree, cog_object* alist, cog_object* stream, int64_t* counter, bool readably) {
+void _table_show_rec_helper(cog_object* tree, cog_object* alist, cog_object* stream, int64_t* counter, bool repr) {
     if (!tree) return;
-    _table_show_rec_helper(tree->TLEFT, alist, stream, counter, readably);
+    _table_show_rec_helper(tree->TLEFT, alist, stream, counter, repr);
     if (tree->TLEFT) cog_fputs_imm(stream, ", ");
-    cog_print_refs_recursive(tree->TKEY, alist, stream, counter, readably);
+    cog_print_refs_recursive(tree->TKEY, alist, stream, counter, repr);
     cog_fputs_imm(stream, ": ");
-    cog_print_refs_recursive(tree->TVAL, alist, stream, counter, readably);
+    cog_print_refs_recursive(tree->TVAL, alist, stream, counter, repr);
     if (tree->TRIGHT) cog_fputs_imm(stream, ", ");
-    _table_show_rec_helper(tree->TRIGHT, alist, stream, counter, readably);
+    _table_show_rec_helper(tree->TRIGHT, alist, stream, counter, repr);
 }
 
 cog_object* m_table_show_recursive() {
     cog_object* table = cog_pop();
-    bool readably = cog_expect_type_fatal(cog_pop(), &cog_ot_bool)->as_int;
+    bool repr = cog_expect_type_fatal(cog_pop(), &cog_ot_bool)->as_int;
     cog_object* stream = cog_pop();
     cog_object* alist = cog_pop();
     int64_t* counter = (int64_t*)cog_pop()->as_ptr;
     cog_fputs_imm(stream, "{ ");
-    _table_show_rec_helper(table->next, alist, stream, counter, readably);
+    _table_show_rec_helper(table->next, alist, stream, counter, repr);
     cog_fputs_imm(stream, " }");
     return NULL;
 }
@@ -745,7 +749,7 @@ cog_object* cog_mainloop(cog_object* status) {
             cog_object* new_status = cog_run_well_known(which, "Exec");
             if (cog_same_identifiers(new_status, cog_not_implemented())) {
                 cog_pop();
-                cog_push(cog_sprintf("Can't run %O", which));
+                cog_push(cog_make_error(cog_make_identifier_c("Runtime-error"), cog_sprintf("Can't run %O", which), cog_get_context()));
                 new_status = cog_error();
             }
             if (is_normal_exec) status = new_status;
@@ -1019,9 +1023,16 @@ void cog_identifier_set_location(cog_object* ident, cog_object* filename, cog_ob
     ident->next->next = cog_tuple(3, filename, line, col);
 }
 
+cog_object* cog_identifier_get_location(cog_object* identifier) {
+    if (identifier->type != &cog_ot_identifier) return NULL;
+    cog_object* loc =  identifier->next->next;
+    if (loc) return loc;
+    return cog_tuple(3, cog_string("native code"), cog_box_int(0), cog_box_int(0));
+}
+
 cog_object* m_show_identifier() {
     cog_object* i = cog_pop();
-    cog_pop(); // ignore readably
+    cog_pop(); // ignore repr
     cog_push(cog_explode_identifier(i, true));
     return NULL;
 }
@@ -1034,6 +1045,7 @@ cog_object_method ome_identifier_show = {
 cog_object* m_run_identifier() {
     cog_object* self = cog_pop();
     cog_object* cookie = cog_pop();
+    COG_GLOBALS.context = self;
     // first look up definition
     bool found = false;
     cog_object* def = cog_get_fun(self, &found);
@@ -1047,8 +1059,7 @@ cog_object* m_run_identifier() {
             cog_run_next(cog_make_bfunction(self->as_fun), NULL, cookie);
             return NULL;
         } else {
-            cog_push(cog_sprintf("undefined: %O", self));
-            return cog_error();
+            COG_RETURN_ERROR(Name-error, cog_sprintf("undefined: %O", self));
         }
     }
 }
@@ -1084,9 +1095,9 @@ cog_object* cog_sym(cog_object* i) {
 
 cog_object* m_symbol_show() {
     cog_object* sym = cog_pop();
-    bool readably = cog_expect_type_fatal(cog_pop(), &cog_ot_bool)->as_int;
+    bool repr = cog_expect_type_fatal(cog_pop(), &cog_ot_bool)->as_int;
     cog_object* chars = cog_explode_identifier(sym->next, false);
-    if (!readably) {
+    if (!repr) {
         cog_push(chars);
     } else {
         cog_push(cog_sprintf("\\%#O", chars));
@@ -1268,8 +1279,8 @@ size_t cog_string_to_cstring(cog_object* str, char* const cstr, size_t len) {
 
 cog_object* m_string_show() {
     cog_object* buffer = cog_pop();
-    bool readably = cog_expect_type_fatal(cog_pop(), &cog_ot_bool)->as_int;
-    if (!readably) {
+    bool repr = cog_expect_type_fatal(cog_pop(), &cog_ot_bool)->as_int;
+    if (!repr) {
         cog_push(buffer);
     }
     else {
@@ -1449,13 +1460,11 @@ cog_obj_type ot_iostring = {"IOString", cog_walk_both, NULL};
 cog_object* cog_empty_io_string() {
     cog_object* stream = cog_make_obj(&ot_iostring);
     stream->data = cog_box_int(0); // the cursor position
-    stream->next = cog_make_obj(&cog_ot_list);
-    stream->next->data = cog_emptystring(); // the ungetc stack
-    stream->next->next = cog_make_obj(&cog_ot_list);
-    stream->next->next->data = cog_emptystring(); // the actual contents
-    stream->next->next->next = cog_make_obj(&cog_ot_list);
-    stream->next->next->next->data = cog_string("<string>"); // the name of the string stream
-    stream->next->next->next->next = cog_tuple(2, cog_box_int(1), cog_box_int(1)); // line and column
+    stream->next = cog_tuple(4,
+        cog_emptystring(), // the ungetc stack
+        cog_emptystring(), // the actual contents
+        cog_string("<string>"), // the name of the string stream
+        cog_tuple(2, cog_box_int(1), cog_box_int(1))); // line and column
     return stream;
 }
 
@@ -1514,7 +1523,7 @@ cog_object* m_iostring_getch() {
         stream->data = cog_box_int(pos + 1);
 
         // Update line and column
-        cog_object* line_col = stream->next->next->next->next;
+        cog_object* line_col = stream->next->next->next->next->data;
         int64_t line = line_col->data->as_int;
         int64_t col = line_col->next->data->as_int;
         if (c == '\n') {
@@ -1523,7 +1532,7 @@ cog_object* m_iostring_getch() {
         } else {
             col++;
         }
-        stream->next->next->next->next = cog_tuple(2, cog_box_int(line), cog_box_int(col));
+        stream->next->next->next->next->data = cog_tuple(2, cog_box_int(line), cog_box_int(col));
     } else {
         cog_push(cog_eof());
     }
@@ -1544,7 +1553,7 @@ cog_object_method ome_iostring_ungets = {&ot_iostring, "Stream::UngetString", m_
 
 cog_object* m_iostring_show() {
     cog_object* stream = cog_pop();
-    cog_pop(); // ignore readably
+    cog_pop(); // ignore repr
     cog_push(cog_sprintf("<IOstring at pos %O of %O>", stream->data, cog_iostring_get_contents(stream)));
     return NULL;
 }
@@ -1552,14 +1561,14 @@ cog_object_method ome_iostring_show = {&ot_iostring, "Show", m_iostring_show};
 
 cog_object* m_iostring_get_name() {
     cog_object* stream = cog_pop();
-    cog_push(stream->next->next->next); // return the name of the string stream
+    cog_push(stream->next->next->next->data); // return the name of the string stream
     return NULL;
 }
 cog_object_method ome_iostring_get_name = {&ot_iostring, "Stream::Get_Name", m_iostring_get_name};
 
 cog_object* m_iostring_tell_linecol() {
     cog_object* stream = cog_pop();
-    cog_object* line_col = stream->next->next->next->next;
+    cog_object* line_col = stream->next->next->next->next->data;
     cog_push(cog_clone_list_shallow(line_col));
     return NULL;
 }
@@ -1663,11 +1672,37 @@ cog_object_method ome_block_exec = {&ot_block, "Exec", m_block_exec};
 
 cog_object* m_block_show() {
     cog_object* block = cog_pop();
-    cog_pop(); // ignore readably
+    cog_pop(); // ignore repr
     cog_push(cog_sprintf("<Block %O>", block->next));
     return NULL;
 }
 cog_object_method ome_block_show = {&ot_block, "Show", m_block_show};
+
+// MARK: ERROR OBJECTS
+
+cog_obj_type cog_ot_error = {"Error", cog_walk_both, NULL};
+
+cog_object* cog_make_error(cog_object* type, cog_object* message, cog_object* location) {
+    cog_object* error = cog_make_obj(&cog_ot_error);
+    error->data = type;
+    error->next = cog_make_obj(&cog_ot_list);
+    error->next->data = message;
+    error->next->next = location;
+    return error;
+}
+
+cog_object* m_error_show() {
+    cog_object* error = cog_pop();
+    bool repr = cog_expect_type_fatal(cog_pop(), &cog_ot_bool)->as_int;
+
+    cog_object* ctx = error->next->next;
+    cog_object* where = cog_identifier_get_location(ctx);
+    cog_push(cog_sprintf(repr ? "<Error %O %O at %O (%#O:%O:%O)>" : "ERROR(%O): %#O\n  at %O (%#O:%O:%O)",
+        error->data, error->next->data, ctx, where->data, where->next->data, where->next->next->data));
+
+    return NULL;
+}
+cog_object_method ome_error_show = {&cog_ot_error, "Show", m_error_show};
 
 // MARK: DUMPER
 
@@ -1700,7 +1735,7 @@ int64_t cog_rec_get_refnum(cog_object* obj, cog_object* alist, int64_t* counter)
     return 0;
 }
 
-void cog_print_refs_recursive(cog_object* obj, cog_object* alist, cog_object* stream, int64_t* counter, bool readably) {
+void cog_print_refs_recursive(cog_object* obj, cog_object* alist, cog_object* stream, int64_t* counter, bool repr) {
     char buffer[256];
     if (obj == NULL) {
         cog_fputs_imm(stream, "nil");
@@ -1723,14 +1758,14 @@ void cog_print_refs_recursive(cog_object* obj, cog_object* alist, cog_object* st
     cog_push(counter_ptr);
     cog_push(alist);
     cog_push(stream);
-    cog_push(cog_box_bool(readably));
+    cog_push(cog_box_bool(repr));
     if (cog_same_identifiers(cog_run_well_known(obj, "Show_Recursive"), cog_not_implemented())) {
         cog_pop();
         cog_pop();
         cog_pop();
         cog_pop();
         // defer to Show if that didn't work
-        cog_push(cog_box_bool(readably));
+        cog_push(cog_box_bool(repr));
         if (cog_same_identifiers(cog_run_well_known(obj, "Show"), cog_not_implemented())) {
             cog_pop();
             snprintf(buffer, sizeof(buffer), "#<%s: %p %p>", obj->type ? obj->type->name : "NULL", obj->data, obj->next);
@@ -1741,11 +1776,11 @@ void cog_print_refs_recursive(cog_object* obj, cog_object* alist, cog_object* st
     }
 }
 
-void cog_dump(cog_object* obj, cog_object* stream, bool readably) {
+void cog_dump(cog_object* obj, cog_object* stream, bool repr) {
     cog_object* alist_header = cog_make_obj(&cog_ot_list);
     int64_t counter = 1;
     cog_walk(obj, make_refs_list, alist_header);
-    cog_print_refs_recursive(obj, alist_header->data, stream, &counter, readably);
+    cog_print_refs_recursive(obj, alist_header->data, stream, &counter, repr);
 }
 
 // MARK: PARSER
@@ -1836,7 +1871,7 @@ cog_object* fn_parser_handle_token() {
     error:
     cog_push(cog_box_bool(true));
     cog_run_well_known_strict(buffer, "Show");
-    COG_RETURN_ERROR(cog_sprintf("PARSE ERROR: could not handle token %O", cog_pop()));
+    COG_RETURN_ERROR(Syntax-error, cog_sprintf("could not handle token %O", cog_pop()));
 
     retry:
     cog_run_next(cog_make_identifier_c("[[Parser::HandleToken]]"), NULL, cookie);
@@ -2326,7 +2361,7 @@ cog_object_method ome_def_or_let_exec = {&ot_def_or_let_special, "Exec", m_def_o
 
 cog_object* m_def_or_let_show() {
     cog_object* self = cog_pop();
-    cog_pop(); // ignore readably
+    cog_pop(); // ignore repr
     bool is_def = self->as_int;
     cog_object* symbol = self->next;
     cog_push(cog_sprintf("<%s %O>", is_def ? "Def" : "Let", symbol));
@@ -2744,12 +2779,12 @@ cog_object* fn_first() {
     COG_ENSURE_N_ITEMS(1);
     cog_object* a = cog_pop();
     if (a && a->type == &cog_ot_string) {
-        if (cog_strlen(a) == 0) COG_RETURN_ERROR(cog_string("tried to get First of an empty string"));
+        if (cog_strlen(a) == 0) COG_RETURN_ERROR(Value-error, cog_string("tried to get First of an empty string"));
         cog_push(cog_make_character(cog_nthchar(a, 0)));
         return NULL;
     }
     COG_ENSURE_LIST(a);
-    if (!a) COG_RETURN_ERROR(cog_string("tried to get First of an empty list"));
+    if (!a) COG_RETURN_ERROR(Value-error, cog_string("tried to get First of an empty list"));
     cog_push(a->data);
     return NULL;
 }
@@ -2759,14 +2794,14 @@ cog_object* fn_rest() {
     COG_ENSURE_N_ITEMS(1);
     cog_object* a = cog_pop();
     if (a && a->type == &cog_ot_string) {
-        if (cog_strlen(a) == 0) COG_RETURN_ERROR(cog_string("tried to get Rest of an empty string"));
+        if (cog_strlen(a) == 0) COG_RETURN_ERROR(Value-error, cog_string("tried to get Rest of an empty string"));
         cog_object* dup = cog_strdup(a);
         cog_string_delete_char(&dup, 0);
         cog_push(dup);
         return NULL;
     }
     COG_ENSURE_LIST(a);
-    if (!a) COG_RETURN_ERROR(cog_string("tried to get Rest of an empty list"));
+    if (!a) COG_RETURN_ERROR(Value-error, cog_string("tried to get Rest of an empty list"));
     cog_push(a->next);
     return NULL;
 }
@@ -2837,7 +2872,7 @@ cog_object* fn_ordinal() {
     char b[MB_CUR_MAX + 1];
     cog_string_to_cstring(a, b, MB_CUR_MAX);
     if (!b[0])
-		COG_RETURN_ERROR(cog_string("Gave empty string to Ordinal"));
+		COG_RETURN_ERROR(Value-error, cog_string("Gave empty string to Ordinal"));
 	wchar_t chr = 0;
     mbtowc(NULL, NULL, 0); // reset the conversion state
 	mbtowc(&chr, b, MB_CUR_MAX);
@@ -2859,7 +2894,7 @@ cog_object* fn_character() {
     memset(b, 0, MB_CUR_MAX + 1);
     size_t len = wctomb(b, ord);
     if (len == (size_t)-1)
-        COG_RETURN_ERROR(cog_sprintf("Invalid ordinal %O", a));
+        COG_RETURN_ERROR(Value-error, cog_sprintf("Invalid ordinal %O", a));
     cog_push(cog_string(b));
     return NULL;
 }
@@ -2994,7 +3029,7 @@ cog_object* fn_number() {
     } else if (sscanf(b, "%lf", &f) == 1) {
         cog_push(cog_box_float(f));
     } else {
-        COG_RETURN_ERROR(cog_sprintf("Can't convert %O to a number", a));
+        COG_RETURN_ERROR(Value-error, cog_sprintf("Can't convert %O to a number", a));
     }
     return NULL;
 }
@@ -3011,7 +3046,8 @@ cog_object* fn_wait() {
 cog_modfunc fne_wait = {"Wait", COG_FUNC, fn_wait, "Sleep for a number of seconds."};
 
 cog_object* fn_stop() {
-    COG_RETURN_ERROR(NULL);
+    cog_push(NULL);
+    return cog_error();
 }
 cog_modfunc fne_stop = {"Stop", COG_FUNC, fn_stop, "Stop the program."};
 
@@ -3045,13 +3081,13 @@ static cog_object* _box(cog_object* what) {
 
 cog_object* m_box_show_recursive() {
     cog_object* box = cog_pop();
-    bool readably = cog_expect_type_fatal(cog_pop(), &cog_ot_bool)->as_int;
+    bool repr = cog_expect_type_fatal(cog_pop(), &cog_ot_bool)->as_int;
     cog_object* stream = cog_pop();
     cog_object* alist = cog_pop();
     int64_t* counter = (int64_t*)cog_pop()->as_ptr;
 
     cog_fputchar_imm(stream, '[');
-    cog_print_refs_recursive(box->next, alist, stream, counter, readably);
+    cog_print_refs_recursive(box->next, alist, stream, counter, repr);
     cog_fputchar_imm(stream, ']');
 
     return NULL;
@@ -3145,7 +3181,7 @@ cog_modfunc fne_table = {"Table", COG_FUNC, fn_table, "Makes a table from the ke
 
 #define ENSURE_HASHABLE(obj) \
     do { \
-        if (!cog_hash(obj)) COG_RETURN_ERROR(cog_sprintf("Can't hash key %O", (obj))); \
+        if (!cog_hash(obj)) COG_RETURN_ERROR(Type-error, cog_sprintf("Can't hash key %O", (obj))); \
     } while (0)
 
 cog_object* fn_list_to_tab() {
@@ -3156,7 +3192,7 @@ cog_object* fn_list_to_tab() {
     while (list) {
         cog_object* key = list->data;
         ENSURE_HASHABLE(key);
-        if (!list->next) COG_RETURN_ERROR(cog_string("Odd-length list in Table initializer"));
+        if (!list->next) COG_RETURN_ERROR(Stack-error, cog_string("Odd-length list in Table initializer"));
         cog_object* val = list->next->data;
         list = list->next->next;
         tab = cog_table_insert_or_update(tab, key, val);
@@ -3186,7 +3222,7 @@ cog_object* fn_remove() {
     ENSURE_HASHABLE(key);
     bool found;
     cog_table_get(table, key, &found);
-    if (!found) COG_RETURN_ERROR(cog_sprintf("Can't remove key %O that is not in the table", key));
+    if (!found) COG_RETURN_ERROR(Key-error, cog_sprintf("Can't remove key %O that is not in the table", key));
     cog_push(cog_table_remove(table, key));
     return NULL;
 }
@@ -3200,7 +3236,7 @@ cog_object* fn_dot() {
     ENSURE_HASHABLE(key);
     bool found;
     cog_object* value = cog_table_get(table, key, &found);
-    if (!found) COG_RETURN_ERROR(cog_sprintf("Can't get key %O from table", key));
+    if (!found) COG_RETURN_ERROR(Key-error, cog_sprintf("Can't get key %O from table", key));
     cog_push(value);
     return NULL;
 }
@@ -3258,7 +3294,7 @@ cog_object* fn_length() {
     else if (x->type == &cog_ot_list) cog_push(cog_box_int(cog_list_length(x)));
     else if (x->type == &cog_ot_string) cog_push(cog_box_int(cog_strlen(x)));
     else if (x->type == &cog_ot_table) cog_push(cog_table_reduce(x, _table_len, cog_box_int(0)));
-    else COG_RETURN_ERROR(cog_sprintf("%s object has no length: %O", GET_TYPENAME_STRING(x), x));
+    else COG_RETURN_ERROR(Value-error, cog_sprintf("%s object has no length: %O", GET_TYPENAME_STRING(x), x));
     return NULL;
 }
 cog_modfunc fne_length = {"Length", COG_FUNC, fn_length, "Return the length of a list, string, or table."};
@@ -3481,6 +3517,7 @@ static cog_object_method* builtin_objfunc_table[] = {
     &ome_int_equal_other_type,
     &ome_float_equal_other_type,
     &ome_iostring_tell_linecol,
+    &ome_error_show,
     NULL
 };
 
@@ -3505,6 +3542,7 @@ static cog_obj_type* builtin_types[] = {
     &ot_var,
     &ot_box,
     &cog_ot_continuation,
+    &cog_ot_error,
     NULL
 };
 

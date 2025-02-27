@@ -215,6 +215,10 @@ cog_object* cog_explode_identifier(cog_object*, bool);
  */
 bool cog_same_identifiers(cog_object*, cog_object*);
 
+void cog_identifier_set_location(cog_object*, cog_object*, cog_object*, cog_object*);
+
+cog_object* cog_identifier_get_location(cog_object*);
+
 cog_object* cog_sym(cog_object*);
 
 /**
@@ -539,6 +543,10 @@ cog_object* cog_mainloop(cog_object*);
  */
 cog_object* cog_not_implemented();
 
+cog_object* cog_make_error(cog_object*, cog_object*, cog_object*);
+
+cog_object* cog_get_context();
+
 /**
  * Returns the error status identifier.
  */
@@ -619,9 +627,9 @@ extern cog_obj_type cog_ot_continuation;
 /**
  * Returns early with an error status and the specified message.
  */
-#define COG_RETURN_ERROR(msg) \
+#define COG_RETURN_ERROR(type, msg) \
     do { \
-        cog_push(msg); \
+        cog_push(cog_make_error(cog_make_identifier_c(#type), msg, cog_get_context())); \
         return cog_error(); \
     } while (0)
 
@@ -648,7 +656,7 @@ extern cog_obj_type cog_ot_continuation;
 #define COG_ENSURE_N_ITEMS(n) \
     do { \
         if (!cog_stack_has_at_least(n)) { \
-            COG_RETURN_ERROR(cog_sprintf("%s: Expected %d items on the stack, but there were only %d", __func__, n, cog_stack_length())); \
+            COG_RETURN_ERROR(Stack-error, cog_sprintf("Expected %d items on the stack, but there were only %d", n, cog_stack_length())); \
         } \
     } while (0)
 
@@ -658,7 +666,7 @@ extern cog_obj_type cog_ot_continuation;
 #define COG_ENSURE_TYPE(obj, typeobj) \
     do { \
         if ((obj) == NULL || (obj)->type != typeobj) { \
-            COG_RETURN_ERROR(cog_sprintf("Expected %s, but got %s: %O", \
+            COG_RETURN_ERROR(Type-error, cog_sprintf("Expected %s, but got %s: %O", \
                 (typeobj) ? (typeobj)->name : "empty List", (obj) && (obj)->type ? (obj)->type->name : "empty List", (obj))); \
         } \
     } while (0)
@@ -678,7 +686,7 @@ extern cog_obj_type cog_ot_continuation;
 #define COG_GET_NUMBER(obj, var) \
     do { \
         if ((obj) == NULL || ((obj)->type != &cog_ot_int && (obj)->type != &cog_ot_float)) { \
-            COG_RETURN_ERROR(cog_sprintf("Expected a number, but got %s: %O", (obj) ? (obj)->type->name : "empty List", (obj))); \
+            COG_RETURN_ERROR(Type-error, cog_sprintf("Expected a number, but got %s: %O", (obj) ? (obj)->type->name : "empty List", (obj))); \
         } \
         else var = (obj)->type == &cog_ot_float ? (obj)->as_float : (obj)->as_int; \
     } while (0)

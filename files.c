@@ -171,7 +171,7 @@ cog_object* fn_open() {
     else if (cog_same_identifiers(mode->next, cog_make_identifier_c("read-append"))) mod = "a+";
     else if (cog_same_identifiers(mode->next, cog_make_identifier_c("read-write"))) mod = "w+";
     else if (cog_same_identifiers(mode->next, cog_make_identifier_c("read-write-existing"))) mod = "r+";
-    else COG_RETURN_ERROR(cog_sprintf("Expected one of \\read, \\write, \\append, \\read-write, \\read-append, \\read-write-existing but got %O", mode));
+    else COG_RETURN_ERROR(Value-error, cog_sprintf("Expected one of \\read, \\write, \\append, \\read-write, \\read-append, \\read-write-existing but got %O", mode));
     // get the filename
     size_t len = cog_strlen(filename);
     char* buf = (char*)alloca(len + 1);
@@ -179,8 +179,8 @@ cog_object* fn_open() {
     cog_string_to_cstring(filename, buf, len);
     errno = 0;
     FILE* f = fopen(buf, mod);
-    if (errno) COG_RETURN_ERROR(cog_sprintf("While opening %O: [Errno %i] %s", filename, errno, strerror(errno)));
-    else if (!f) COG_RETURN_ERROR(cog_sprintf("Unknown error while opening %O", filename));
+    if (errno) COG_RETURN_ERROR(System-error, cog_sprintf("While opening %O: [Errno %i] %s", filename, errno, strerror(errno)));
+    else if (!f) COG_RETURN_ERROR(System-error, cog_sprintf("Unknown error while opening %O", filename));
     cog_push(cog_make_filestream(f, filename));
     return NULL;
 }
@@ -191,7 +191,7 @@ cog_object* fn_readfile() {
     cog_object* file = cog_pop();
     COG_ENSURE_TYPE(file, &ot_file);
     FILE* f = (FILE*)file->as_ptr;
-    if (!f) COG_RETURN_ERROR(cog_string("Tried to read a closed file"));
+    if (!f) COG_RETURN_ERROR(Resource-error, cog_string("Tried to read a closed file"));
     cog_object* str = cog_emptystring();
     cog_object* tail = str;
     for (int ch = fgetc(f); ch != EOF; ch = fgetc(f))
@@ -212,15 +212,15 @@ cog_object* fn_seek() {
     COG_ENSURE_TYPE(what, &ot_file);
     int w = SEEK_SET;
     FILE* f = (FILE*)what->as_ptr;
-    if (!f) COG_RETURN_ERROR(cog_string("Tried to seek a closed file"));
+    if (!f) COG_RETURN_ERROR(Resource-error, cog_string("Tried to seek a closed file"));
     if (cog_same_identifiers(how->next, cog_make_identifier_c("start"))) w = SEEK_SET;
     else if (cog_same_identifiers(how->next, cog_make_identifier_c("end"))) w = SEEK_END;
     else if (cog_same_identifiers(how->next, cog_make_identifier_c("current"))) w = SEEK_CUR;
-    else COG_RETURN_ERROR(cog_sprintf("Expected one of \\start, \\end, \\current but got %O", how));
+    else COG_RETURN_ERROR(Value-error, cog_sprintf("Expected one of \\start, \\end, \\current but got %O", how));
     long nf = n;
-    if (nf != n) COG_RETURN_ERROR(cog_sprintf("can't seek to a non-integer offset: %O", where));
+    if (nf != n) COG_RETURN_ERROR(Value-error, cog_sprintf("can't seek to a non-integer offset: %O", where));
     int err = fseek(f, n, w);
-    if (err) COG_RETURN_ERROR(cog_sprintf("failed to seek to %O for %O", where, how));
+    if (err) COG_RETURN_ERROR(System-error, cog_sprintf("failed to seek to %O for %O", where, how));
     return NULL;
 }
 cog_modfunc fne_seek = {"Seek", COG_FUNC, fn_seek, "Seeks a file to a particular offset."};
@@ -230,7 +230,7 @@ cog_object* fn_readline() {
     cog_object* file = cog_pop();
     COG_ENSURE_TYPE(file, &ot_file);
     FILE* f = (FILE*)file->as_ptr;
-    if (!f) COG_RETURN_ERROR(cog_string("Tried to read a closed file"));
+    if (!f) COG_RETURN_ERROR(Resource-error, cog_string("Tried to read a closed file"));
     cog_object* str = cog_emptystring();
     cog_object* tail = str;
     int ch;
@@ -248,7 +248,7 @@ cog_object* fn_close() {
     cog_object* file = cog_pop();
     COG_ENSURE_TYPE(file, &ot_file);
     FILE* f = (FILE*)file->as_ptr;
-    if (!f) COG_RETURN_ERROR(cog_string("File is already closed"));
+    if (!f) COG_RETURN_ERROR(Resource-error, cog_string("File is already closed"));
     if (f != stdin && f != stdout && f != stderr) {
         fclose(f);
     }

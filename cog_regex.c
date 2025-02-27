@@ -20,7 +20,7 @@
         char* errmsg = (char*)alloca(size + 1); \
 		regerror(status, &reg, errmsg, size); \
         regfree(&reg); \
-        COG_RETURN_ERROR(cog_sprintf("Error compiling regex %O: %s", pat, errmsg)); \
+        COG_RETURN_ERROR(Regex-error, cog_sprintf("Error compiling regex %O: %s", pat, errmsg)); \
     }
 
 #define _REGEX_RUN_ERR \
@@ -29,7 +29,7 @@
         char* errmsg = (char*)alloca(size + 1); \
 		regerror(status, &reg, errmsg, size); \
         regfree(&reg); \
-        COG_RETURN_ERROR(cog_sprintf("Error running regex %O on string %O: %s", pat, str, errmsg)); \
+        COG_RETURN_ERROR(Regex-error, cog_sprintf("Error running regex %O on string %O: %s", pat, str, errmsg)); \
     }
 
 cog_object* fn_regex() {
