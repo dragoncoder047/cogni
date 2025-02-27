@@ -1225,7 +1225,7 @@ void cog_string_delete_char(cog_object** str, size_t index) {
     memmove((*current)->as_chars + index, (*current)->as_chars + index + 1, (*current)->stored_chars - index - 1);
     (*current)->stored_chars--;
 
-    if ((*current)->stored_chars == 0) {
+    if ((*current)->stored_chars == 0 && (*current)->next) {
         *current = (*current)->next;
     }
 }
