@@ -1,8 +1,8 @@
 import glob
 import os
 import re
-import signal
 import subprocess
+import sys
 
 os.chdir("cognac/")
 
@@ -12,19 +12,18 @@ errors = 0
 crashes = 0
 
 
-def test(file: str, process: subprocess.Popen, pad_length: int):
+def test(file: str, process: subprocess.Popen, pad_length: int, is_kill: bool):
     global successes
     global failures
     global errors
     global crashes
+    if process.poll() is None:
+        return False
     print("Testing", file.ljust(pad_length), end=" :: ")
-    try:
-        exit_code = process.wait()
-    except KeyboardInterrupt:
-        exit_code = signal.SIGINT
+    exit_code = process.returncode
     out: bytes = process.stdout.read() + process.stderr.read() + \
         f"\nProgram exited with code {exit_code}\n".encode()
-    if exit_code == signal.SIGINT:
+    if is_kill:
         print("\x1b[35mINTERRUPT\x1b[0m", end=" ")
     elif exit_code != 0:
         crashes += 1
@@ -45,15 +44,37 @@ def test(file: str, process: subprocess.Popen, pad_length: int):
     if (m := re.search(r"undefined: (.+?)\n", out.decode(), re.I)):
         print("requires", m.group(1), end="")
     print()
+    return True
 
 
+is_profiling = len(sys.argv) > 1
 test_files = sorted(glob.glob("tests/*.cog"))
-test_commands = [["../cogni", file] for file in test_files]
+if is_profiling:
+    raise NotImplementedError
+    test_commands = [["xctrace", "record",
+                      "--output", "traces/",
+                      "--template", "Time Profiler",
+                      "--time-limit", "10s",
+                      "--launch", "--", "../cogni", file]
+                     for file in test_files]
+
+else:
+    test_commands = [["../cogni", file] for file in test_files]
 test_processes = [subprocess.Popen(
     command, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
     for command in test_commands]
-for f, p in zip(test_files, test_processes):
-    test(f, p, max(map(len, test_files)))
+file2proc = dict(zip(test_files, [[p, False] for p in test_processes]))
+pl = max(map(len, test_files))
+try:
+    while any(not q for p, q in file2proc.values()):
+        for f, (p, q) in file2proc.items():
+            if not q:
+                file2proc[f][1] = test(f, p, pl, False)
+except KeyboardInterrupt:
+    for f, (p, q) in file2proc.items():
+        if not q:
+            p.kill()
+            test(f, p, pl, True)
 
 print("Successes:", successes)
 print(" Failures:", failures)

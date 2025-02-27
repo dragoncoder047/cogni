@@ -17,7 +17,7 @@ cog_obj_type ot_file = {"File", cog_walk_only_next, closefile};
 cog_object* cog_make_filestream(FILE* f, cog_object* filename) {
     cog_object* fo = cog_make_obj(&ot_file);
     fo->as_ptr = (void*)f;
-    fo->next = filename;
+    fo->next = cog_tuple(3, filename, cog_box_int(1), cog_box_int(1));
     return fo;
 }
 
@@ -40,9 +40,25 @@ cog_object_method ome_file_write = {&ot_file, "Stream::PutString", m_file_write}
 
 static cog_object* m_file_getch() {
     cog_object* file = cog_pop();
-    FILE* f = (FILE*)file->as_ptr;
-    if (feof(f)) cog_push(cog_eof());
-    else cog_push(cog_make_character(fgetc(f)));
+    FILE* fp = (FILE*)file->as_ptr;
+    int c = fgetc(fp);
+    if (c != EOF) {
+        cog_push(cog_make_character(c));
+
+        // Update line and column
+        cog_object* line_col = file->next->next;
+        int64_t line = line_col->data->as_int;
+        int64_t col = line_col->next->data->as_int;
+        if (c == '\n') {
+            line++;
+            col = 1;
+        } else {
+            col++;
+        }
+        file->next->next = cog_tuple(2, cog_box_int(line), cog_box_int(col));
+    } else {
+        cog_push(cog_eof());
+    }
     return NULL;
 }
 static cog_object_method ome_file_getch = {&ot_file, "Stream::GetChar", m_file_getch};
@@ -51,11 +67,19 @@ static cog_object* m_file_ungets() {
     cog_object* file = cog_pop();
     cog_object* buf = cog_pop();
     FILE* f = (FILE*)file->as_ptr;
+    // Track line and column
+    cog_object* line_col = file->next->next;
+    int64_t line = line_col->data->as_int;
+    int64_t col = line_col->next->data->as_int;
     while (buf) {
-        for (int i = 0; i < buf->stored_chars; i++)
-            ungetc(buf->as_chars[i], f);
+        for (int i = 0; i < buf->stored_chars; i++) {
+            char c = buf->as_chars[i];
+            ungetc(c, f);
+            col--; // tracking if it goes below 0 ie to the previous line is not important here
+        }
         buf = buf->next;
     }
+    file->next->next = cog_tuple(2, cog_box_int(line), cog_box_int(col));
     return NULL;
 }
 static cog_object_method ome_file_ungets = {&ot_file, "Stream::UngetString", m_file_ungets};
@@ -108,26 +132,8 @@ cog_object_method ome_file_get_name = {&ot_file, "Stream::Get_Name", m_file_get_
 
 cog_object* m_file_tell_linecol() {
     cog_object* file = cog_pop();
-    FILE* f = (FILE*)file->as_ptr;
-    long pos = ftell(f);
-    fseek(f, 0, SEEK_SET);
-
-    int64_t line = 1, col = 1;
-    for (long i = 0; i < pos; i++) {
-        char ch = fgetc(f);
-        if (ch == '\n') {
-            line++;
-            col = 1;
-        } else {
-            col++;
-        }
-    }
-
-    fseek(f, pos, SEEK_SET);
-    assert(ftell(f) == pos);
-
-    cog_object* result = cog_tuple(2, cog_box_int(line), cog_box_int(col));
-    cog_push(result);
+    cog_object* line_col = file->next->next;
+    cog_push(cog_clone_list_shallow(line_col));
     return NULL;
 }
 

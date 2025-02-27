@@ -29,7 +29,11 @@ cleanexec:
 	rm -f cogni *.o
 
 stresstest: cogni
+ifeq ($(PROFILE), 1)
+	python3 run_tests.py --profile
+else
 	python3 run_tests.py
+endif
 
 cleanlogs:
 	rm -f cognac/tests/*.log

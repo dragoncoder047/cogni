@@ -1453,7 +1453,9 @@ cog_object* cog_empty_io_string() {
     stream->next->data = cog_emptystring(); // the ungetc stack
     stream->next->next = cog_make_obj(&cog_ot_list);
     stream->next->next->data = cog_emptystring(); // the actual contents
-    stream->next->next->next = cog_string("<string>"); // the name of the string stream
+    stream->next->next->next = cog_make_obj(&cog_ot_list);
+    stream->next->next->next->data = cog_string("<string>"); // the name of the string stream
+    stream->next->next->next->next = cog_tuple(2, cog_box_int(1), cog_box_int(1)); // line and column
     return stream;
 }
 
@@ -1468,7 +1470,7 @@ cog_object* cog_iostring_get_contents(cog_object* stream) {
 }
 
 void cog_iostring_set_name(cog_object* stream, cog_object* name) {
-    cog_expect_type_fatal(stream, &ot_iostring)->next->next->next = cog_expect_type_fatal(name, &cog_ot_string);
+    cog_expect_type_fatal(stream, &ot_iostring)->next->next->next->data = cog_expect_type_fatal(name, &cog_ot_string);
 }
 
 static cog_object* m_iostring_write() {
@@ -1507,8 +1509,21 @@ cog_object* m_iostring_getch() {
     cog_object* data = cog_iostring_get_contents(stream);
     size_t len = cog_strlen(data);
     if (pos < len) {
-        cog_push(cog_make_character(cog_nthchar(data, pos)));
+        char c = cog_nthchar(data, pos);
+        cog_push(cog_make_character(c));
         stream->data = cog_box_int(pos + 1);
+
+        // Update line and column
+        cog_object* line_col = stream->next->next->next->next;
+        int64_t line = line_col->data->as_int;
+        int64_t col = line_col->next->data->as_int;
+        if (c == '\n') {
+            line++;
+            col = 1;
+        } else {
+            col++;
+        }
+        stream->next->next->next->next = cog_tuple(2, cog_box_int(line), cog_box_int(col));
     } else {
         cog_push(cog_eof());
     }
@@ -1544,25 +1559,8 @@ cog_object_method ome_iostring_get_name = {&ot_iostring, "Stream::Get_Name", m_i
 
 cog_object* m_iostring_tell_linecol() {
     cog_object* stream = cog_pop();
-    int64_t pos = stream->data->as_int;
-    cog_object* data = cog_iostring_get_contents(stream);
-
-    int64_t line = 1;
-    int64_t col = 1;
-    while (data) {
-        for (int i = 0; i < data->stored_chars; i++) {
-            char ch = data->as_chars[i];
-            if (ch == '\n') {
-                line++;
-                col = 1;
-            } else {
-                col++;
-            }
-        }
-    }
-
-    cog_object* result = cog_tuple(2, cog_box_int(line), cog_box_int(col));
-    cog_push(result);
+    cog_object* line_col = stream->next->next->next->next;
+    cog_push(cog_clone_list_shallow(line_col));
     return NULL;
 }
 cog_object_method ome_iostring_tell_linecol = {&ot_iostring, "Stream::Tell_LineCol", m_iostring_tell_linecol};
