@@ -1217,8 +1217,8 @@ void cog_string_delete_char(cog_object** str, size_t index) {
         current = &(*current)->next;
     }
 
-    if (!*current) {
-        // If index is out of bounds, do nothing
+    if (!*current || (*current)->stored_chars == 0) {
+        // If index is out of bounds or there are no characters to move, do nothing
         return;
     }
 
