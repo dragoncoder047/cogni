@@ -407,7 +407,7 @@ cog_object_method ome_list_hash = {&cog_ot_list, "Hash", m_list_hash};
 static cog_object* m_list_equal() {
     cog_object* self = cog_pop();
     cog_object* other = cog_pop();
-    if (other->type != &cog_ot_list) {
+    if (other && other->type != &cog_ot_list) {
         cog_push(cog_box_bool(false));
         return NULL;
     }
@@ -721,13 +721,13 @@ bool cog_has_well_known(cog_object* obj, const char* meth) {
 }
 
 cog_object* cog_run_well_known(cog_object* obj, const char* meth) {
-    assert(obj != NULL);
+    cog_obj_type* t = obj ? obj->type : &cog_ot_list;
     COG_ITER_LIST(COG_GLOBALS.modules, modobj) {
         cog_module* mod = (cog_module*)modobj->as_ptr;
         if (mod->mtab == NULL) continue;
         for (size_t i = 0; mod->mtab[i] != NULL; i++) {
             cog_object_method* m = mod->mtab[i];
-            if (strcmp(m->wkm, meth) == 0 && m->type_for == obj->type) {
+            if (strcmp(m->wkm, meth) == 0 && m->type_for == t) {
                 cog_push(obj);
                 cog_object* res = m->func();
                 if (res && cog_same_identifiers(res, COG_GLOBALS.not_impl_sym)) continue;
@@ -1100,6 +1100,7 @@ cog_object* m_run_identifier() {
             cog_run_next(cog_make_bfunction(self->as_fun), NULL, cookie);
             return NULL;
         } else {
+            cog_printf("DEBUG: undefined error: Env is %O\n", COG_GLOBALS.scopes);
             cog_push(cog_sprintf("undefined: %O", self));
             return cog_error();
         }
@@ -2551,29 +2552,30 @@ cog_modfunc fne_greatereq = {">=", COG_FUNC, fn_greatereq, "Check if a is greate
 cog_modfunc fne_pow = {"^", COG_FUNC, fn_pow, "Get the power of a to b."};
 
 bool cog_equal(cog_object* a, cog_object* b) {
+    const char* method = "Equal";
     if (a && b && a->type != b->type) {
-        cog_push(b);
-        if (cog_same_identifiers(cog_run_well_known(a, "Equal_OtherType"), cog_not_implemented())) {
-            cog_pop();
-            cog_push(a);
-            if (cog_same_identifiers(cog_run_well_known(b, "Equal_OtherType"), cog_not_implemented())) {
-                cog_pop();
-                return false;
-            } else return cog_expect_type_fatal(cog_pop(), &cog_ot_bool)->as_int;
-        } else return cog_expect_type_fatal(cog_pop(), &cog_ot_bool)->as_int;
+        method = "Equal_OtherType";
+        goto check_both;
     }
     else {
         cog_object* ha = cog_hash(a);
         cog_object* hb = cog_hash(b);
-        bool hashmatch = ha && hb ? (ha->as_int == hb->as_int) : (a == b);
-        if (hashmatch && a && b) {
-            cog_push(b);
-            if (!cog_same_identifiers(cog_run_well_known(b, "Equal"), cog_not_implemented())) {
-                return cog_expect_type_fatal(cog_pop(), &cog_ot_bool)->as_int;
-            }
+        if (ha && hb) {
+            if (ha->as_int != hb->as_int) return false;
+            goto check_both;
         }
-        return hashmatch;
+        return a == b;
     }
+    check_both:
+    cog_push(b);
+    if (cog_same_identifiers(cog_run_well_known(a, method), cog_not_implemented())) {
+        cog_pop();
+        cog_push(a);
+        if (cog_same_identifiers(cog_run_well_known(b, method), cog_not_implemented())) {
+            cog_pop();
+            return false;
+        } else return cog_expect_type_fatal(cog_pop(), &cog_ot_bool)->as_int;
+    } else return cog_expect_type_fatal(cog_pop(), &cog_ot_bool)->as_int;
 }
 
 cog_object* fn_eq() {
